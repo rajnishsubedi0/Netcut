@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="8dp"
+    android:layout_marginBottom="4dp"
+    android:background="#EEEEEE">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+        <TextView android:id="@+id/tv_name" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="16sp" android:textStyle="bold" android:text="Unnamed" />
+        <TextView android:id="@+id/tv_status" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Online" />
+    </LinearLayout>
+    <TextView android:id="@+id/tv_ip" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="IP: 192.168.1.1" />
+    <TextView android:id="@+id/tv_mac" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="MAC: AA:BB:CC:DD:EE:FF" />
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="4dp">
+        <Button android:id="@+id/btn_ping" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Ping" />
+        <Button android:id="@+id/btn_ban" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Ban" />
+    </LinearLayout>
+</LinearLayout>
