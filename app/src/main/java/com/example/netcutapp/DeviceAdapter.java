@@ -41,6 +41,15 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
         holder.tvStatus.setTextColor(d.isOnline() ? 0xFF00FF00 : 0xFFFF0000);
         holder.btnBan.setText(d.isBanned() ? "Unban" : "Ban");
 
+        // ISSUE 4 FIX: Highlight banned devices visually instead of hiding them
+        if (d.isBanned()) {
+            holder.itemView.setBackgroundColor(0xFFFFDDDD); // Light red background
+            holder.tvName.setTextColor(0xFFD32F2F);         // Red text
+        } else {
+            holder.itemView.setBackgroundColor(0xFFEEEEEE); // Default gray background
+            holder.tvName.setTextColor(0xFF000000);         // Black text
+        }
+
         holder.tvName.setOnClickListener(v -> listener.onNameClick(d));
         holder.btnBan.setOnClickListener(v -> listener.onBanClick(d));
         holder.btnPing.setOnClickListener(v -> listener.onPingClick(d));

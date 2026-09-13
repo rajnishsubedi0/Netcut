@@ -28,6 +28,7 @@ public class MainActivity extends AppCompatActivity
         BannedDeviceAdapter.OnUnbanListener,
         NetcutService.ServiceCallback {
 
+
     private NetcutService service;
     private boolean bound = false;
     private DeviceAdapter connectedAdapter;
@@ -36,7 +37,7 @@ public class MainActivity extends AppCompatActivity
     private TextView tvStats;
     private Button btnStart, btnScan, btnBanAll, btnRestoreAll, btnTabConnected, btnTabBanned;
 
-    private final ServiceConnection connection = new ServiceConnection() {
+    private ServiceConnection connection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder binder) {
             service = ((NetcutService.LocalBinder) binder).getService();
@@ -44,7 +45,6 @@ public class MainActivity extends AppCompatActivity
             bound = true;
             refreshUI();
         }
-
         @Override
         public void onServiceDisconnected(ComponentName name) {
             bound = false;
@@ -84,7 +84,7 @@ public class MainActivity extends AppCompatActivity
         btnTabConnected.setOnClickListener(v -> showTab(true));
         btnTabBanned.setOnClickListener(v -> showTab(false));
 
-        showTab(true);
+        showTab(true); // Default to Connected tab
     }
 
     @Override
@@ -127,13 +127,14 @@ public class MainActivity extends AppCompatActivity
     private void manualScan() {
         if (bound) {
             Toast.makeText(this, "Scanning...", Toast.LENGTH_SHORT).show();
+            service.forceScan();
         }
     }
 
     private void banAll() {
         if (!bound) return;
-        for (Device d : service.getAllDevices()) {
-            if (d.isOnline()) service.banDevice(d.getMac());
+        for (Device d : service.getConnectedDevices()) {
+            if (d.isOnline()) service.banDevice(d.getMac(), d.getIp());
         }
         refreshUI();
     }
@@ -146,15 +147,28 @@ public class MainActivity extends AppCompatActivity
         refreshUI();
     }
 
+    // ISSUE 5 FIX: Highlight the active tab visually
     private void showTab(boolean connected) {
         rvConnected.setVisibility(connected ? RecyclerView.VISIBLE : RecyclerView.GONE);
         rvBanned.setVisibility(connected ? RecyclerView.GONE : RecyclerView.VISIBLE);
+
+        if (connected) {
+            btnTabConnected.setBackgroundColor(0xFF2196F3); // Active Blue
+            btnTabConnected.setTextColor(0xFFFFFFFF);
+            btnTabBanned.setBackgroundColor(0xFFEEEEEE);    // Inactive Gray
+            btnTabBanned.setTextColor(0xFF000000);
+        } else {
+            btnTabBanned.setBackgroundColor(0xFF2196F3);    // Active Blue
+            btnTabBanned.setTextColor(0xFFFFFFFF);
+            btnTabConnected.setBackgroundColor(0xFFEEEEEE); // Inactive Gray
+            btnTabConnected.setTextColor(0xFF000000);
+        }
         refreshUI();
     }
 
     private void refreshUI() {
         if (!bound) return;
-        List<Device> connected = service.getAllDevices();
+        List<Device> connected = service.getConnectedDevices();
         List<Device> banned = service.getBannedDevices();
 
         connectedAdapter = new DeviceAdapter(connected, this);
@@ -163,32 +177,39 @@ public class MainActivity extends AppCompatActivity
         rvConnected.setAdapter(connectedAdapter);
         rvBanned.setAdapter(bannedAdapter);
 
-        long onlineCount = 0;
-        for (Device d : connected) {
-            if (d.isOnline()) onlineCount++;
-        }
+        long onlineCount = connected.stream().filter(Device::isOnline).count();
         long bannedCount = banned.size();
         tvStats.setText(String.format("Online: %d | Banned: %d", onlineCount, bannedCount));
 
         btnStart.setText(service.isEngineRunning() ? "Stop Service" : "Start Service");
     }
 
-    // ---- DeviceAdapter.OnDeviceActionListener ----
-
+    // DeviceAdapter Callbacks
     @Override
     public void onBanClick(Device device) {
         if (!bound) return;
-        if (device.isBanned()) {
-            service.unbanDevice(device.getMac());
-        } else {
-            service.banDevice(device.getMac());
-        }
+        if (device.isBanned()) service.unbanDevice(device.getMac());
+        else service.banDevice(device.getMac(), device.getIp());
         refreshUI();
     }
 
+    // ISSUE 6 FIX: Real Ping with Time Extraction
     @Override
     public void onPingClick(Device device) {
-        if (bound) service.pingBinary();
+        Toast.makeText(this, "Pinging " + device.getIp() + "...", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            String ip = device.getIp();
+            String output = RootManager.execute("ping -c 1 -W 1 " + ip);
+            String msg;
+            if (output.contains("time=")) {
+                int idx = output.indexOf("time=");
+                String timeStr = output.substring(idx + 5).trim().split(" ")[0];
+                msg = ip + " is reachable — " + timeStr + " ms";
+            } else {
+                msg = ip + " is unreachable";
+            }
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show());
+        }).start();
     }
 
     @Override
@@ -196,12 +217,11 @@ public class MainActivity extends AppCompatActivity
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Edit Device Name");
         final EditText input = new EditText(this);
-        String currentName = device.getName();
-        input.setText(currentName.equals("Unnamed") ? "" : currentName);
+        input.setText(device.getName().equals("Unnamed") ? "" : device.getName());
         builder.setView(input);
         builder.setPositiveButton("Save", (dialog, which) -> {
             if (bound) {
-                service.updateDeviceName(device.getMac(), input.getText().toString());
+                service.updateDeviceName(device.getMac(), device.getIp(), input.getText().toString());
                 refreshUI();
             }
         });
@@ -209,13 +229,10 @@ public class MainActivity extends AppCompatActivity
         builder.show();
         input.requestFocus();
         InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        if (imm != null) {
-            imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT);
-        }
+        imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT);
     }
 
-    // ---- BannedDeviceAdapter.OnUnbanListener ----
-
+    // BannedDeviceAdapter Callbacks
     @Override
     public void onUnbanClick(Device device) {
         if (bound) {
@@ -224,8 +241,7 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // ---- NetcutService.ServiceCallback ----
-
+    // Service Callbacks
     @Override
     public void onDataChanged() {
         runOnUiThread(this::refreshUI);

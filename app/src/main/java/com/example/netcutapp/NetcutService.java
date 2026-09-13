@@ -10,6 +10,7 @@ import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
 import org.json.JSONObject;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -22,6 +23,9 @@ public class NetcutService extends Service {
     private DeviceDbHelper dbHelper;
     private ScheduledExecutorService scheduler;
     private ServiceCallback callback;
+
+    // In-memory list for currently scanned devices (Issue 2 Fix)
+    private List<Device> currentScan = new ArrayList<>();
 
     public class LocalBinder extends Binder {
         public NetcutService getService() { return NetcutService.this; }
@@ -43,14 +47,11 @@ public class NetcutService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Notification notification = null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            notification = new Notification.Builder(this, "NETCUT_CHANNEL")
-                    .setContentTitle("Netcut Active")
-                    .setContentText("Monitoring network and enforcing bans")
-                    .setSmallIcon(android.R.drawable.ic_menu_manage)
-                    .build();
-        }
+        Notification notification = new Notification.Builder(this, "NETCUT_CHANNEL")
+                .setContentTitle("Netcut Active")
+                .setContentText("Monitoring network and enforcing bans")
+                .setSmallIcon(android.R.drawable.ic_menu_manage)
+                .build();
         startForeground(1, notification);
         return START_STICKY;
     }
@@ -94,42 +95,97 @@ public class NetcutService extends Service {
         if (bridge != null) bridge.pingBinary();
     }
 
-    public void banDevice(String mac) {
-        dbHelper.setBanned(mac, true);
+    // FIX: Updated to accept IP, as the DB requires it for new entries
+    public void banDevice(String mac, String ip) {
+        dbHelper.setBanned(mac, ip, true);
         syncBannedDevices();
         notifyDataChanged();
     }
 
     public void unbanDevice(String mac) {
-        dbHelper.setBanned(mac, false);
+        dbHelper.setBanned(mac, "", false);
         syncBannedDevices();
         notifyDataChanged();
     }
 
-    public void updateDeviceName(String mac, String name) {
-        dbHelper.setName(mac, name);
+    // FIX: Updated to accept IP, as the DB requires it for new entries
+    public void updateDeviceName(String mac, String ip, String name) {
+        dbHelper.setName(mac, ip, name);
         notifyDataChanged();
     }
 
-    public List<Device> getAllDevices() { return dbHelper.getAllDevices(); }
-    public List<Device> getBannedDevices() { return dbHelper.getBannedDevices(); }
+    // FIX: Returns the in-memory scanned list instead of querying the DB
+    public List<Device> getConnectedDevices() {
+        synchronized (currentScan) {
+            return new ArrayList<>(currentScan);
+        }
+    }
+
+    public List<Device> getBannedDevices() {
+        return dbHelper.getBannedDevices();
+    }
 
     private void startPeriodicScan() {
+        // FIX (Issue 2): Clear previous scan on restart to ensure a fresh state
+        synchronized (currentScan) {
+            currentScan.clear();
+        }
+
         scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleWithFixedDelay(() -> {
             List<Device> scanned = NetworkScanner.scanArp(this);
+
+            // Merge with DB for banned/named status
             for (Device d : scanned) {
-                dbHelper.updateDeviceStatus(d.getMac(), d.getIp(), true);
+                Device dbDevice = dbHelper.getDevice(d.getMac());
+                if (dbDevice != null) {
+                    d.setBanned(dbDevice.isBanned());
+                    // FIX (Issue 3): Only pull name if it was explicitly saved
+                    if (dbDevice.getName() != null && !dbDevice.getName().isEmpty()) {
+                        d.setName(dbDevice.getName());
+                    }
+                    // Update IP in DB if the device is already tracked
+                    dbHelper.updateIp(d.getMac(), d.getIp());
+                }
             }
-            // Mark devices not in scan as offline (handled by DB threshold)
+
+            synchronized (currentScan) {
+                currentScan.clear();
+                currentScan.addAll(scanned);
+            }
+
             syncBannedDevices();
             notifyDataChanged();
-        }, 0, 10, TimeUnit.SECONDS);
+        }, 0, 15, TimeUnit.SECONDS);
+    }
+
+    public void forceScan() {
+        if (scheduler != null) {
+            scheduler.execute(() -> {
+                List<Device> scanned = NetworkScanner.scanArp(this);
+                for (Device d : scanned) {
+                    Device dbDevice = dbHelper.getDevice(d.getMac());
+                    if (dbDevice != null) {
+                        d.setBanned(dbDevice.isBanned());
+                        if (dbDevice.getName() != null && !dbDevice.getName().isEmpty()) {
+                            d.setName(dbDevice.getName());
+                        }
+                        dbHelper.updateIp(d.getMac(), d.getIp());
+                    }
+                }
+                synchronized (currentScan) {
+                    currentScan.clear();
+                    currentScan.addAll(scanned);
+                }
+                syncBannedDevices();
+                notifyDataChanged();
+            });
+        }
     }
 
     private void syncBannedDevices() {
         if (bridge != null && bridge.isRunning()) {
-            List<Device> targets = dbHelper.getOnlineBannedDevices();
+            List<Device> targets = dbHelper.getBannedDevices();
             bridge.syncTargets(targets);
         }
     }
