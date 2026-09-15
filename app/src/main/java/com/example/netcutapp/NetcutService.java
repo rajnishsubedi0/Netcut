@@ -26,7 +26,6 @@ public class NetcutService extends Service {
     private ScheduledExecutorService scheduler;
     private ServiceCallback callback;
 
-    // ✅ Tracks all known devices to accurately mark them as offline when they drop
     private Map<String, Device> knownDevices = new ConcurrentHashMap<>();
     private List<Device> currentScan = new ArrayList<>();
 
@@ -57,16 +56,14 @@ public class NetcutService extends Service {
                 .setOngoing(true)
                 .build();
         startForeground(1, notification);
-
         return START_NOT_STICKY;
     }
 
-    @Override
-    public IBinder onBind(Intent intent) { return binder; }
+    @Override public IBinder onBind(Intent intent) { return binder; }
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        Log.d(TAG, "App removed from recents. Initiating graceful binary shutdown and ARP restore...");
+        Log.d(TAG, "App removed from recents. Initiating detached binary shutdown...");
         killBinaryGracefully();
         super.onTaskRemoved(rootIntent);
     }
@@ -81,6 +78,11 @@ public class NetcutService extends Service {
     public void startEngine(String iface, String gateway) {
         if (bridge != null && bridge.isRunning()) return;
 
+        // ✅ FIX 1: Clear memory completely on start to prevent stale caching
+        knownDevices.clear();
+        synchronized (currentScan) { currentScan.clear(); }
+        notifyDataChanged();
+
         bridge = new RustBridge();
         bridge.start(iface, gateway, new RustBridge.BridgeEventListener() {
             @Override
@@ -89,8 +91,6 @@ public class NetcutService extends Service {
                 if ("SERVICE_STARTED".equals(event)) {
                     startPeriodicScan();
                     notifyToast("Service Started");
-                } else if ("SYNC_COMPLETED".equals(event)) {
-                    // notifyToast("Sync Completed");
                 } else if ("ERROR".equals(event)) {
                     notifyToast("Error: " + data.optString("message"));
                 }
@@ -99,17 +99,9 @@ public class NetcutService extends Service {
         });
     }
 
-    public void stopEngine() {
-        killBinaryGracefully();
-    }
-
-    public boolean isEngineRunning() {
-        return bridge != null && bridge.isRunning();
-    }
-
-    public void pingBinary() {
-        if (bridge != null) bridge.pingBinary();
-    }
+    public void stopEngine() { killBinaryGracefully(); }
+    public boolean isEngineRunning() { return bridge != null && bridge.isRunning(); }
+    public void pingBinary() { if (bridge != null) bridge.pingBinary(); }
 
     public void banDevice(String mac, String ip) {
         dbHelper.setBanned(mac, ip, true);
@@ -129,52 +121,37 @@ public class NetcutService extends Service {
     }
 
     public List<Device> getConnectedDevices() {
-        synchronized (currentScan) {
-            return new ArrayList<>(currentScan);
-        }
+        synchronized (currentScan) { return new ArrayList<>(currentScan); }
     }
 
-    public List<Device> getBannedDevices() {
-        return dbHelper.getBannedDevices();
-    }
+    public List<Device> getBannedDevices() { return dbHelper.getBannedDevices(); }
 
     private void startPeriodicScan() {
-        if (scheduler != null && !scheduler.isShutdown()) {
-            scheduler.shutdownNow();
-        }
+        if (scheduler != null && !scheduler.isShutdown()) scheduler.shutdownNow();
 
         scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleWithFixedDelay(() -> {
             List<Device> scanned = NetworkScanner.scanArp(this);
 
-            // ✅ 1. Mark all currently known devices as offline first
-            for (Device d : knownDevices.values()) {
-                d.setOnline(false);
-            }
+            for (Device d : knownDevices.values()) d.setOnline(false);
 
-            // ✅ 2. Update with freshly scanned devices (they are online)
             for (Device d : scanned) {
                 Device dbDevice = dbHelper.getDevice(d.getMac());
                 if (dbDevice != null) {
                     d.setBanned(dbDevice.isBanned());
-                    if (dbDevice.getName() != null && !dbDevice.getName().isEmpty()) {
-                        d.setName(dbDevice.getName());
-                    }
+                    if (dbDevice.getName() != null && !dbDevice.getName().isEmpty()) d.setName(dbDevice.getName());
                     dbHelper.updateIp(d.getMac(), d.getIp());
                 }
                 d.setOnline(true);
                 knownDevices.put(d.getMac(), d);
             }
 
-            // ✅ 3. Update currentScan for the UI (sort: Online first, then by IP)
             synchronized (currentScan) {
                 currentScan.clear();
                 List<Device> sortedDevices = new ArrayList<>(knownDevices.values());
                 sortedDevices.sort((d1, d2) -> {
-                    if (d1.isOnline() == d2.isOnline()) {
-                        return d1.getIp().compareTo(d2.getIp());
-                    }
-                    return d1.isOnline() ? -1 : 1; // Online devices appear at the top
+                    if (d1.isOnline() == d2.isOnline()) return d1.getIp().compareTo(d2.getIp());
+                    return d1.isOnline() ? -1 : 1;
                 });
                 currentScan.addAll(sortedDevices);
             }
@@ -185,43 +162,29 @@ public class NetcutService extends Service {
     }
 
     public void forceScan() {
-        if (scheduler == null || scheduler.isShutdown() || scheduler.isTerminated()) {
-            Log.w(TAG, "Cannot force scan: scheduler is not running");
-            return;
-        }
-
+        if (scheduler == null || scheduler.isShutdown() || scheduler.isTerminated()) return;
         scheduler.execute(() -> {
             List<Device> scanned = NetworkScanner.scanArp(this);
-
-            for (Device d : knownDevices.values()) {
-                d.setOnline(false);
-            }
-
+            for (Device d : knownDevices.values()) d.setOnline(false);
             for (Device d : scanned) {
                 Device dbDevice = dbHelper.getDevice(d.getMac());
                 if (dbDevice != null) {
                     d.setBanned(dbDevice.isBanned());
-                    if (dbDevice.getName() != null && !dbDevice.getName().isEmpty()) {
-                        d.setName(dbDevice.getName());
-                    }
+                    if (dbDevice.getName() != null && !dbDevice.getName().isEmpty()) d.setName(dbDevice.getName());
                     dbHelper.updateIp(d.getMac(), d.getIp());
                 }
                 d.setOnline(true);
                 knownDevices.put(d.getMac(), d);
             }
-
             synchronized (currentScan) {
                 currentScan.clear();
                 List<Device> sortedDevices = new ArrayList<>(knownDevices.values());
                 sortedDevices.sort((d1, d2) -> {
-                    if (d1.isOnline() == d2.isOnline()) {
-                        return d1.getIp().compareTo(d2.getIp());
-                    }
+                    if (d1.isOnline() == d2.isOnline()) return d1.getIp().compareTo(d2.getIp());
                     return d1.isOnline() ? -1 : 1;
                 });
                 currentScan.addAll(sortedDevices);
             }
-
             syncBannedDevices();
             notifyDataChanged();
         });
@@ -229,57 +192,40 @@ public class NetcutService extends Service {
 
     private void syncBannedDevices() {
         if (bridge != null && bridge.isRunning()) {
-            List<Device> targets = dbHelper.getBannedDevices();
-            bridge.syncTargets(targets);
+            bridge.syncTargets(dbHelper.getBannedDevices());
         }
     }
 
-    private void notifyDataChanged() {
-        if (callback != null) callback.onDataChanged();
-    }
-
-    private void notifyToast(String msg) {
-        if (callback != null) callback.onToastMessage(msg);
-    }
+    private void notifyDataChanged() { if (callback != null) callback.onDataChanged(); }
+    private void notifyToast(String msg) { if (callback != null) callback.onToastMessage(msg); }
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    "NETCUT_CHANNEL", "Netcut Service", NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel channel = new NotificationChannel("NETCUT_CHANNEL", "Netcut Service", NotificationManager.IMPORTANCE_LOW);
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) manager.createNotificationChannel(channel);
         }
     }
 
+    // ✅ FIX 2: Detached shell survives app death, ensuring Rust binary finishes ARP restoration
     private void killBinaryGracefully() {
         if (bridge != null && bridge.isRunning()) {
-            bridge.stop();
+            bridge.stop(); // Send quit via stdin
         }
 
-        new Thread(() -> {
-            try {
-                String pidOutput = RootManager.execute("pidof netcut");
-                if (pidOutput != null && !pidOutput.trim().isEmpty()) {
-                    String pid = pidOutput.trim().split("\\s+")[0];
-                    Log.d(TAG, "Found netcut PID: " + pid + ". Sending SIGTERM (15) for graceful restore...");
-                    RootManager.execute("kill -15 " + pid);
+        try {
+            // setsid detaches this shell from the app's lifecycle.
+            // It will send SIGTERM, wait 3 seconds for Rust to restore ARP, then SIGKILL.
+            Runtime.getRuntime().exec(new String[]{"su", "-c",
+                    "setsid sh -c 'pidof netcut | xargs -r kill -15; sleep 3; pidof netcut | xargs -r kill -9' >/dev/null 2>&1 &"});
+            Log.d(TAG, "Detached kill process spawned. App can now die safely.");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to execute detached kill", e);
+        }
 
-                    Thread.sleep(2500);
-
-                    String stillRunning = RootManager.execute("pidof netcut");
-                    if (stillRunning != null && !stillRunning.trim().isEmpty()) {
-                        Log.d(TAG, "Force killing (SIGKILL)...");
-                        RootManager.execute("kill -9 " + pid);
-                    }
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Error during graceful kill", e);
-            }
-
-            if (scheduler != null && !scheduler.isShutdown()) {
-                scheduler.shutdownNow();
-            }
-        }).start();
+        if (scheduler != null && !scheduler.isShutdown()) {
+            scheduler.shutdownNow();
+        }
 
         stopForeground(true);
         stopSelf();

@@ -4,59 +4,108 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    >
+    android:layout_height="match_parent">
 
-
-    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:padding="16dp"
         tools:context=".MainActivity">
 
+        <!-- Top Buttons (Scan button removed) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal">
-            <Button android:id="@+id/btn_start" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Start Service" />
-            <Button android:id="@+id/btn_scan" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Scan" />
+            <Button
+                android:id="@+id/btn_start"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="Start Service" />
         </LinearLayout>
 
+        <!-- Ban All / Restore All -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:layout_marginTop="8dp">
-            <Button android:id="@+id/btn_ban_all" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Ban All" />
-            <Button android:id="@+id/btn_restore_all" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Restore All" />
+            <Button
+                android:id="@+id/btn_ban_all"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="Ban All" />
+            <Button
+                android:id="@+id/btn_restore_all"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="Restore All" />
         </LinearLayout>
 
-        <TextView android:id="@+id/tv_stats" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Online: 0 | Banned: 0" android:layout_marginTop="8dp" android:textStyle="bold"/>
-
-        <LinearLayout
+        <!-- Stats -->
+        <TextView
+            android:id="@+id/tv_stats"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="16dp">
-            <Button android:id="@+id/btn_tab_connected" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Connected" />
-            <Button android:id="@+id/btn_tab_banned" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Banned" />
-        </LinearLayout>
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rv_connected"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_marginTop="8dp" />
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rv_banned"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
+            android:text="Online: 0 | Banned: 0"
             android:layout_marginTop="8dp"
-            android:visibility="gone" />
-    </LinearLayout>
+            android:textStyle="bold" />
 
+        <!-- ✅ SwipeRefreshLayout wrapping Tabs and Lists -->
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/swipe_refresh"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical">
+
+                <!-- Tabs -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+                    <Button
+                        android:id="@+id/btn_tab_connected"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:text="Connected" />
+                    <Button
+                        android:id="@+id/btn_tab_banned"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:text="Banned" />
+                </LinearLayout>
+
+                <!-- RecyclerView Container (FrameLayout allows them to overlap) -->
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:layout_marginTop="8dp">
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rv_connected"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent" />
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rv_banned"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:visibility="gone" />
+                </FrameLayout>
+            </LinearLayout>
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+    </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

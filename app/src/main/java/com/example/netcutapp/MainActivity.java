@@ -22,7 +22,9 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity
@@ -37,7 +39,10 @@ public class MainActivity extends AppCompatActivity
     private BannedDeviceAdapter bannedAdapter;
     private RecyclerView rvConnected, rvBanned;
     private TextView tvStats;
-    private Button btnStart, btnScan, btnBanAll, btnRestoreAll, btnTabConnected, btnTabBanned;
+
+    // ✅ Removed btn_scan, added swipeRefresh
+    private Button btnStart, btnBanAll, btnRestoreAll, btnTabConnected, btnTabBanned;
+    private SwipeRefreshLayout swipeRefresh;
 
     private ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -46,17 +51,14 @@ public class MainActivity extends AppCompatActivity
             service.setCallback(MainActivity.this);
             bound = true;
 
-            // ✅ GOAL 1: Auto-start service and scan on app launch if rooted
+            // Auto-start service and scan on app launch if rooted
             if (RootManager.isRooted() && !service.isEngineRunning()) {
                 String gateway = NetworkScanner.getGatewayIp(MainActivity.this);
                 String iface = NetworkScanner.getInterfaceName();
                 if (gateway != null) {
                     service.startEngine(iface, gateway);
                     btnStart.setText("Stop Service");
-                    // Delay scan slightly to let the Rust engine initialize
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        service.forceScan();
-                    }, 1000);
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> service.forceScan(), 1000);
                 }
             }
             refreshUI();
@@ -86,23 +88,40 @@ public class MainActivity extends AppCompatActivity
         rvBanned = findViewById(R.id.rv_banned);
         tvStats = findViewById(R.id.tv_stats);
         btnStart = findViewById(R.id.btn_start);
-        btnScan = findViewById(R.id.btn_scan);
         btnBanAll = findViewById(R.id.btn_ban_all);
         btnRestoreAll = findViewById(R.id.btn_restore_all);
         btnTabConnected = findViewById(R.id.btn_tab_connected);
         btnTabBanned = findViewById(R.id.btn_tab_banned);
 
+        // ✅ Initialize SwipeRefreshLayout
+        swipeRefresh = findViewById(R.id.swipe_refresh);
+        swipeRefresh.setDistanceToTriggerSync(550);
+        swipeRefresh.setOnRefreshListener(() -> {
+            if (bound && service.isEngineRunning()) {
+                Toast.makeText(this, "Scanning network...", Toast.LENGTH_SHORT).show();
+                service.forceScan();
+            } else {
+                Toast.makeText(this, "Service is not running. Start it first.", Toast.LENGTH_SHORT).show();
+                swipeRefresh.setRefreshing(false); // Stop spinner if service isn't running
+            }
+        });
+
         rvConnected.setLayoutManager(new LinearLayoutManager(this));
         rvBanned.setLayoutManager(new LinearLayoutManager(this));
 
+        // Initialize adapters ONCE to prevent jerky UI movements
+        connectedAdapter = new DeviceAdapter(new ArrayList<>(), this);
+        bannedAdapter = new BannedDeviceAdapter(new ArrayList<>(), this);
+        rvConnected.setAdapter(connectedAdapter);
+        rvBanned.setAdapter(bannedAdapter);
+
         btnStart.setOnClickListener(v -> toggleService());
-        btnScan.setOnClickListener(v -> manualScan());
         btnBanAll.setOnClickListener(v -> banAll());
         btnRestoreAll.setOnClickListener(v -> restoreAll());
         btnTabConnected.setOnClickListener(v -> showTab(true));
         btnTabBanned.setOnClickListener(v -> showTab(false));
 
-        showTab(true);
+        showTab(true); // Default to Connected tab
     }
 
     @Override
@@ -138,55 +157,30 @@ public class MainActivity extends AppCompatActivity
                 service.startEngine(iface, gateway);
                 btnStart.setText("Stop Service");
                 Toast.makeText(this, "Gateway: " + gateway, Toast.LENGTH_SHORT).show();
-                new Handler(Looper.getMainLooper()).postDelayed(() -> service.forceScan(), 1000);
             }
         }
     }
 
-    private void manualScan() {
-        if (bound && service.isEngineRunning()) {
-            Toast.makeText(this, "Scanning network...", Toast.LENGTH_SHORT).show();
-            service.forceScan();
-        } else {
-            Toast.makeText(this, "Service is not running. Start it first.", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    // ✅ GOAL 3: Optimistic UI Update for Ban All
     private void banAll() {
         if (!bound) return;
-        List<Device> connected = service.getConnectedDevices();
-
-        // 1. Instantly update UI state
-        for (Device d : connected) {
-            if (d.isOnline()) d.setBanned(true);
+        for (Device d : service.getConnectedDevices()) {
+            if (d.isOnline()) {
+                d.setBanned(true);
+                service.banDevice(d.getMac(), d.getIp());
+            }
         }
         if (connectedAdapter != null) connectedAdapter.notifyDataSetChanged();
-
-        // 2. Perform background sync
-        new Thread(() -> {
-            for (Device d : connected) {
-                if (d.isOnline()) service.banDevice(d.getMac(), d.getIp());
-            }
-        }).start();
     }
 
-    // ✅ GOAL 3: Optimistic UI Update for Restore All
     private void restoreAll() {
         if (!bound) return;
-        List<Device> banned = service.getBannedDevices();
-        List<Device> connected = service.getConnectedDevices();
-
-        // 1. Instantly update UI state
-        for (Device d : connected) {
+        for (Device d : service.getConnectedDevices()) {
             d.setBanned(false);
         }
         if (connectedAdapter != null) connectedAdapter.notifyDataSetChanged();
-        if (bannedAdapter != null) bannedAdapter.notifyDataSetChanged();
 
-        // 2. Perform background sync
         new Thread(() -> {
-            for (Device d : banned) {
+            for (Device d : service.getBannedDevices()) {
                 service.unbanDevice(d.getMac());
             }
         }).start();
@@ -197,17 +191,12 @@ public class MainActivity extends AppCompatActivity
         rvBanned.setVisibility(connected ? RecyclerView.GONE : RecyclerView.VISIBLE);
 
         if (connected) {
-            btnTabConnected.setBackgroundColor(0xFF2196F3);
-            btnTabConnected.setTextColor(0xFFFFFFFF);
-            btnTabBanned.setBackgroundColor(0xFFEEEEEE);
-            btnTabBanned.setTextColor(0xFF000000);
+            btnTabConnected.setBackgroundColor(0xFF2196F3); btnTabConnected.setTextColor(0xFFFFFFFF);
+            btnTabBanned.setBackgroundColor(0xFFEEEEEE); btnTabBanned.setTextColor(0xFF000000);
         } else {
-            btnTabBanned.setBackgroundColor(0xFF2196F3);
-            btnTabBanned.setTextColor(0xFFFFFFFF);
-            btnTabConnected.setBackgroundColor(0xFFEEEEEE);
-            btnTabConnected.setTextColor(0xFF000000);
+            btnTabBanned.setBackgroundColor(0xFF2196F3); btnTabBanned.setTextColor(0xFFFFFFFF);
+            btnTabConnected.setBackgroundColor(0xFFEEEEEE); btnTabConnected.setTextColor(0xFF000000);
         }
-        refreshUI();
     }
 
     private void refreshUI() {
@@ -215,16 +204,12 @@ public class MainActivity extends AppCompatActivity
         List<Device> connected = service.getConnectedDevices();
         List<Device> banned = service.getBannedDevices();
 
-        connectedAdapter = new DeviceAdapter(connected, this);
-        bannedAdapter = new BannedDeviceAdapter(banned, this);
-
-        rvConnected.setAdapter(connectedAdapter);
-        rvBanned.setAdapter(bannedAdapter);
+        connectedAdapter.updateDevices(connected);
+        bannedAdapter.updateDevices(banned);
 
         long onlineCount = connected.stream().filter(Device::isOnline).count();
         long bannedCount = banned.size();
         tvStats.setText(String.format("Online: %d | Banned: %d", onlineCount, bannedCount));
-
         btnStart.setText(service.isEngineRunning() ? "Stop Service" : "Start Service");
     }
 
@@ -235,19 +220,8 @@ public class MainActivity extends AppCompatActivity
         if (connectedAdapter != null) connectedAdapter.notifyItemChanged(position);
 
         new Thread(() -> {
-            try {
-                if (newBannedState) {
-                    service.banDevice(device.getMac(), device.getIp());
-                } else {
-                    service.unbanDevice(device.getMac());
-                }
-            } catch (Exception e) {
-                runOnUiThread(() -> {
-                    device.setBanned(!newBannedState);
-                    if (connectedAdapter != null) connectedAdapter.notifyItemChanged(position);
-                });
-                e.printStackTrace();
-            }
+            if (newBannedState) service.banDevice(device.getMac(), device.getIp());
+            else service.unbanDevice(device.getMac());
         }).start();
     }
 
@@ -257,14 +231,9 @@ public class MainActivity extends AppCompatActivity
         new Thread(() -> {
             String ip = device.getIp();
             String output = RootManager.execute("ping -c 1 -W 1 " + ip);
-            String msg;
-            if (output != null && output.contains("time=")) {
-                int idx = output.indexOf("time=");
-                String timeStr = output.substring(idx + 5).trim().split(" ")[0];
-                msg = ip + " is reachable — " + timeStr + " ms";
-            } else {
-                msg = ip + " is unreachable";
-            }
+            String msg = (output != null && output.contains("time=")) ?
+                    ip + " is reachable — " + output.substring(output.indexOf("time=") + 5).trim().split(" ")[0] + " ms" :
+                    ip + " is unreachable";
             runOnUiThread(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show());
         }).start();
     }
@@ -274,7 +243,7 @@ public class MainActivity extends AppCompatActivity
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Edit Device Name");
         final EditText input = new EditText(this);
-        input.setText(device.getName().equals("Unknown device") ? "" : device.getName());
+        input.setText(device.getName().equals("Unnamed") ? "" : device.getName());
         builder.setView(input);
         builder.setPositiveButton("Save", (dialog, which) -> {
             if (bound) {
@@ -297,9 +266,16 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
+    // ✅ Service Callbacks
     @Override
     public void onDataChanged() {
-        runOnUiThread(this::refreshUI);
+        runOnUiThread(() -> {
+            refreshUI();
+            // ✅ Stop the swipe refresh spinner when new data arrives
+            if (swipeRefresh != null) {
+                swipeRefresh.setRefreshing(false);
+            }
+        });
     }
 
     @Override

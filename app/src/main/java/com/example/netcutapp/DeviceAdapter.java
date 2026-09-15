@@ -7,6 +7,7 @@ import android.widget.Button;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+import java.util.ArrayList;
 import java.util.List;
 
 public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder> {
@@ -14,15 +15,21 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
     private OnDeviceActionListener listener;
 
     public interface OnDeviceActionListener {
-        // ✅ Added 'position' parameter for instant updates
         void onBanClick(Device device, int position);
         void onPingClick(Device device);
         void onNameClick(Device device);
     }
 
     public DeviceAdapter(List<Device> devices, OnDeviceActionListener listener) {
-        this.devices = devices;
+        this.devices = new ArrayList<>(devices); // Create a mutable copy
         this.listener = listener;
+    }
+
+    // ✅ FIX: Smoothly update the list without recreating the adapter
+    public void updateDevices(List<Device> newDevices) {
+        this.devices.clear();
+        this.devices.addAll(newDevices);
+        notifyDataSetChanged();
     }
 
     @NonNull
@@ -42,33 +49,27 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
         holder.tvStatus.setTextColor(d.isOnline() ? 0xFF00C853 : 0xFFFF5252);
         holder.btnBan.setText(d.isBanned() ? "Unban" : "Ban");
 
-        // ✅ VISUAL HIGHLIGHTING FOR BANNED DEVICES
         if (d.isBanned()) {
-            holder.itemView.setBackgroundColor(0xFFFFEBEE); // Light red background
-            holder.tvName.setTextColor(0xFFD32F2F);         // Dark red text
-            holder.tvName.setText(d.getName() + " 🚫");     // Add banned icon
+            holder.itemView.setBackgroundColor(0xFFFFEBEE);
+            holder.tvName.setTextColor(0xFFD32F2F);
+            holder.tvName.setText(d.getName() + " 🚫");
         } else {
-            holder.itemView.setBackgroundColor(0xFFFFFFFF); // Clean white background
-            holder.tvName.setTextColor(0xFF212121);         // Standard dark text
-            holder.tvName.setText(d.getName());             // Normal name
+            holder.itemView.setBackgroundColor(0xFFFFFFFF);
+            holder.tvName.setTextColor(0xFF212121);
+            holder.tvName.setText(d.getName());
         }
 
         holder.tvName.setOnClickListener(v -> listener.onNameClick(d));
-
-        // ✅ PASS THE CURRENT POSITION TO THE LISTENER
         holder.btnBan.setOnClickListener(v -> listener.onBanClick(d, holder.getBindingAdapterPosition()));
         holder.btnPing.setOnClickListener(v -> listener.onPingClick(d));
     }
 
     @Override
-    public int getItemCount() {
-        return devices.size();
-    }
+    public int getItemCount() { return devices.size(); }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
         TextView tvName, tvIp, tvMac, tvStatus;
         Button btnBan, btnPing;
-
         ViewHolder(View v) {
             super(v);
             tvName = v.findViewById(R.id.tv_name);

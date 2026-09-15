@@ -7,6 +7,7 @@ import android.widget.Button;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+import java.util.ArrayList;
 import java.util.List;
 
 public class BannedDeviceAdapter extends RecyclerView.Adapter<BannedDeviceAdapter.ViewHolder> {
@@ -18,8 +19,15 @@ public class BannedDeviceAdapter extends RecyclerView.Adapter<BannedDeviceAdapte
     }
 
     public BannedDeviceAdapter(List<Device> devices, OnUnbanListener listener) {
-        this.devices = devices;
+        this.devices = new ArrayList<>(devices);
         this.listener = listener;
+    }
+
+    // ✅ FIX: Smoothly update the list
+    public void updateDevices(List<Device> newDevices) {
+        this.devices.clear();
+        this.devices.addAll(newDevices);
+        notifyDataSetChanged();
     }
 
     @NonNull
