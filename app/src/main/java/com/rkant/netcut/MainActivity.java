@@ -1,4 +1,4 @@
-package com.example.netcutapp;
+package com.rkant.netcut;
 
 import android.os.Build;
 import android.Manifest;

@@ -1,4 +1,4 @@
-package com.example.netcutapp;
+package com.rkant.netcut;
 
 public class Device {
     private String mac;

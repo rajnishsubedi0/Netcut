@@ -1,4 +1,4 @@
-package com.example.netcutapp;
+package com.rkant.netcut;
 
 import android.content.Context;
 import android.content.SharedPreferences;

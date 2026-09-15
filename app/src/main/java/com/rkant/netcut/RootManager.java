@@ -1,4 +1,4 @@
-package com.example.netcutapp;
+package com.rkant.netcut;
 
 import android.util.Log;
 import java.io.BufferedReader;

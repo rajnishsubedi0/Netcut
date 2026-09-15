@@ -1,4 +1,4 @@
-package com.example.netcutapp;
+package com.rkant.netcut;
 
 import android.app.Notification;
 import android.app.NotificationChannel;

@@ -1,4 +1,4 @@
-package com.example.netcutapp;
+package com.example.netcut;
 
 import android.content.Context;
 

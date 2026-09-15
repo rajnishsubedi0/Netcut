@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Netcut App"
+rootProject.name = "Netcut"
 include(":app")

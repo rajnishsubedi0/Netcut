@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.netcutapp"
+    namespace = "com.rkant.netcut"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -11,7 +11,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.netcutapp"
+        applicationId = "com.rkant.netcut"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

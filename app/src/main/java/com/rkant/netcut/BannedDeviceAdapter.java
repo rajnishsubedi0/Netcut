@@ -1,4 +1,4 @@
-package com.example.netcutapp;
+package com.rkant.netcut;
 
 import android.view.LayoutInflater;
 import android.view.View;
