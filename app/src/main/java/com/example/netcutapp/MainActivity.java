@@ -1,4 +1,6 @@
 package com.example.netcutapp;
+
+import android.os.Build;
 import android.Manifest;
 import android.content.ComponentName;
 import android.content.Context;
@@ -7,13 +9,13 @@ import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
@@ -95,6 +97,7 @@ import java.util.List;public class MainActivity extends AppCompatActivity
         });
         checkRootAccess();
         checkNotificationPermission();
+        checkArchitectureSupport();
         showOemBatteryHint(); // one-time guidance for aggressive OEMs
 
         rvConnected = findViewById(R.id.rv_connected);
@@ -457,7 +460,25 @@ import java.util.List;public class MainActivity extends AppCompatActivity
             refreshUI();
         }
     }
+    private void checkArchitectureSupport() {
+        BinaryManager bm = new BinaryManager(this);
+        String arch = bm.detectArchitecture();
 
+        if (arch == null) {
+            new AlertDialog.Builder(this)
+                    .setTitle("❌ Unsupported Architecture")
+                    .setMessage("This device uses an unsupported CPU architecture.\n\n" +
+                            "Detected ABIs: " + java.util.Arrays.toString(Build.SUPPORTED_ABIS) + "\n\n" +
+                            "This app only supports:\n• arm64-v8a (64-bit ARM)\n• armeabi-v7a (32-bit ARM)\n\n" +
+                            "The app cannot function on this device.")
+                    .setCancelable(false)
+                    .setPositiveButton("Exit", (d, w) -> finish())
+                    .show();
+        } else {
+            Log.d("MainActivity", "Architecture supported: " + arch +
+                    " | ABIs: " + java.util.Arrays.toString(Build.SUPPORTED_ABIS));
+        }
+    }
     // Service Callbacks
     @Override
     public void onDataChanged() {

@@ -25,13 +25,23 @@ public class RustBridge {
         void onEvent(String event, JSONObject data);
     }
 
-    public void start(String iface, String gateway, BridgeEventListener listener) {
+    /**
+     * Starts the Rust binary.
+     * @param binaryPath Absolute path to the extracted netcut binary
+     * @param iface Network interface (e.g., wlan0)
+     * @param gateway Gateway IP address
+     * @param listener Event listener for JSON responses
+     */
+    public void start(String binaryPath, String iface, String gateway, BridgeEventListener listener) {
         this.listener = listener;
         try {
             // SELinux bypass for AF_PACKET raw sockets
             RootManager.execute("setenforce 0");
 
-            String cmd = "/data/local/tmp/netcut " + iface + " " + gateway;
+            // ✅ Use the provided binary path instead of hardcoded /data/local/tmp/netcut
+            String cmd = binaryPath + " " + iface + " " + gateway;
+            Log.i(TAG, "Starting binary: " + cmd);
+
             process = Runtime.getRuntime().exec(new String[]{"su", "-c", cmd});
             stdin = new DataOutputStream(process.getOutputStream());
             stdout = new BufferedReader(new InputStreamReader(process.getInputStream()));
@@ -39,7 +49,7 @@ public class RustBridge {
             executor = Executors.newSingleThreadExecutor();
             executor.submit(this::readLoop);
             isRunning = true;
-            Log.i(TAG, "Rust binary started");
+            Log.i(TAG, "Rust binary started successfully");
         } catch (Exception e) {
             Log.e(TAG, "Failed to start binary", e);
             isRunning = false;

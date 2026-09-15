@@ -32,11 +32,13 @@ public class NetcutService extends Service {
     private ScheduledExecutorService scheduler;
     private ServiceCallback callback;
 
-    // ✅ Tracks all known devices to accurately mark them as offline when they drop
+    // ✅ Binary manager for extraction and permission handling
+    private BinaryManager binaryManager;
+    private String binaryPath = null;
+
     private Map<String, Device> knownDevices = new ConcurrentHashMap<>();
     private List<Device> currentScan = new ArrayList<>();
 
-    // ✅ WiFi monitoring callback (lives in Service so it works in background)
     private ConnectivityManager.NetworkCallback networkCallback;
     private Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -55,9 +57,8 @@ public class NetcutService extends Service {
     public void onCreate() {
         super.onCreate();
         dbHelper = new DeviceDbHelper(this);
+        binaryManager = new BinaryManager(this); // ✅ Initialize BinaryManager
         createNotificationChannel();
-
-        // ✅ Register WiFi listener in Service so it survives background
         registerNetworkCallback();
     }
 
@@ -90,16 +91,34 @@ public class NetcutService extends Service {
         super.onDestroy();
     }
 
-    public void startEngine(String iface, String gateway) {
-        if (bridge != null && bridge.isRunning()) return;
+    /**
+     * ✅ Prepares the binary and starts the engine.
+     * Returns true if engine started successfully, false otherwise.
+     */
+    public boolean startEngine(String iface, String gateway) {
+        if (bridge != null && bridge.isRunning()) return true;
 
-        // ✅ FIX: Clear memory completely on start to prevent stale caching
+        // ✅ STEP 1: Prepare the binary (extract, permissions, validate)
+        if (binaryPath == null || binaryPath.isEmpty()) {
+            binaryPath = binaryManager.prepareBinary();
+        }
+
+        if (binaryPath == null) {
+            Log.e(TAG, "Binary preparation failed. Cannot start engine.");
+            notifyToast("Error: Failed to prepare native binary. Unsupported architecture?");
+            return false;
+        }
+
+        Log.i(TAG, "Using binary at: " + binaryPath);
+
+        // ✅ STEP 2: Clear memory to prevent stale caching
         knownDevices.clear();
         synchronized (currentScan) { currentScan.clear(); }
         notifyDataChanged();
 
+        // ✅ STEP 3: Start the bridge with the prepared binary path
         bridge = new RustBridge();
-        bridge.start(iface, gateway, new RustBridge.BridgeEventListener() {
+        bridge.start(binaryPath, iface, gateway, new RustBridge.BridgeEventListener() {
             @Override
             public void onEvent(String event, JSONObject data) {
                 Log.i(TAG, "Event: " + event);
@@ -112,6 +131,8 @@ public class NetcutService extends Service {
                 notifyDataChanged();
             }
         });
+
+        return bridge.isRunning();
     }
 
     public void stopEngine() { killBinaryGracefully(); }
@@ -140,6 +161,16 @@ public class NetcutService extends Service {
     }
 
     public List<Device> getBannedDevices() { return dbHelper.getBannedDevices(); }
+
+    /**
+     * ✅ Returns the detected architecture for UI display.
+     */
+    public String getDetectedArchitecture() {
+        if (binaryManager != null) {
+            return binaryManager.detectArchitecture();
+        }
+        return "unknown";
+    }
 
     private void startPeriodicScan() {
         if (scheduler != null && !scheduler.isShutdown()) scheduler.shutdownNow();
@@ -222,10 +253,6 @@ public class NetcutService extends Service {
         }
     }
 
-    // ========================================================================
-    // ✅ WIFI AUTO-RESTART (Lives in Service → works in background)
-    // ========================================================================
-
     private void registerNetworkCallback() {
         ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         if (cm == null) return;
@@ -235,11 +262,9 @@ public class NetcutService extends Service {
                 .build();
 
         networkCallback = new ConnectivityManager.NetworkCallback() {
-
             @Override
             public void onAvailable(Network network) {
                 Log.d(TAG, "WiFi available detected in background service");
-                // Delay to let DHCP assign gateway IP
                 mainHandler.postDelayed(() -> {
                     if (bridge == null || !bridge.isRunning()) {
                         String gateway = NetworkScanner.getGatewayIp(NetcutService.this);
@@ -248,7 +273,6 @@ public class NetcutService extends Service {
                             Log.d(TAG, "WiFi reconnected. Auto-restarting engine...");
                             notifyToast("WiFi connected. Restarting service...");
                             startEngine(iface, gateway);
-                            // Delay scan to let engine initialize
                             mainHandler.postDelayed(() -> forceScan(), 1500);
                         }
                     }
@@ -289,19 +313,14 @@ public class NetcutService extends Service {
         }
     }
 
-    // ========================================================================
-    // ✅ GRACEFUL KILL (Detached shell survives app process death)
-    // ========================================================================
-
     private void killBinaryGracefully() {
         if (bridge != null && bridge.isRunning()) {
             bridge.stop();
         }
 
         try {
-            // Detached shell survives app death
             Runtime.getRuntime().exec(new String[]{"su", "-c",
-                    "setsid sh -c 'pidof netcut | xargs -r kill -15; sleep 3; pidof netcut | xargs -r kill -9' >/dev/null 2>&1 &"});
+                    "setsid sh -c 'pidof netcut_arm64 2>/dev/null || pidof netcut_armeabi 2>/dev/null || pidof netcut 2>/dev/null | xargs -r kill -15; sleep 3; pidof netcut_arm64 2>/dev/null || pidof netcut_armeabi 2>/dev/null || pidof netcut 2>/dev/null | xargs -r kill -9' >/dev/null 2>&1 &"});
             Log.d(TAG, "Detached kill process spawned. App can now die safely.");
         } catch (Exception e) {
             Log.e(TAG, "Failed to execute detached kill", e);
