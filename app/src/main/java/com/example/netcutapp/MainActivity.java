@@ -1,9 +1,15 @@
 package com.example.netcutapp;
-
+import android.Manifest;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -15,8 +21,11 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -25,13 +34,13 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import java.util.ArrayList;
-import java.util.List;
-
-public class MainActivity extends AppCompatActivity
+import java.util.List;public class MainActivity extends AppCompatActivity
         implements DeviceAdapter.OnDeviceActionListener,
         BannedDeviceAdapter.OnUnbanListener,
         NetcutService.ServiceCallback {
 
+
+    private static final int NOTIFICATION_PERMISSION_CODE = 101;
 
     private NetcutService service;
     private boolean bound = false;
@@ -39,10 +48,11 @@ public class MainActivity extends AppCompatActivity
     private BannedDeviceAdapter bannedAdapter;
     private RecyclerView rvConnected, rvBanned;
     private TextView tvStats;
-
-    // ✅ Removed btn_scan, added swipeRefresh
     private Button btnStart, btnBanAll, btnRestoreAll, btnTabConnected, btnTabBanned;
     private SwipeRefreshLayout swipeRefresh;
+
+    // ✅ WiFi reconnection callback
+    private ConnectivityManager.NetworkCallback networkCallback;
 
     private ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -80,6 +90,8 @@ public class MainActivity extends AppCompatActivity
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+        checkNotificationPermission();
+
         if (!RootManager.isRooted()) {
             Toast.makeText(this, "Root access required", Toast.LENGTH_LONG).show();
         }
@@ -93,16 +105,16 @@ public class MainActivity extends AppCompatActivity
         btnTabConnected = findViewById(R.id.btn_tab_connected);
         btnTabBanned = findViewById(R.id.btn_tab_banned);
 
-        // ✅ Initialize SwipeRefreshLayout
+        // ✅ SwipeRefreshLayout setup
         swipeRefresh = findViewById(R.id.swipe_refresh);
         swipeRefresh.setDistanceToTriggerSync(550);
         swipeRefresh.setOnRefreshListener(() -> {
-            if (bound && service.isEngineRunning()) {
+            if (bound && service != null && service.isEngineRunning()) {
                 Toast.makeText(this, "Scanning network...", Toast.LENGTH_SHORT).show();
                 service.forceScan();
             } else {
                 Toast.makeText(this, "Service is not running. Start it first.", Toast.LENGTH_SHORT).show();
-                swipeRefresh.setRefreshing(false); // Stop spinner if service isn't running
+                swipeRefresh.setRefreshing(false);
             }
         });
 
@@ -121,7 +133,7 @@ public class MainActivity extends AppCompatActivity
         btnTabConnected.setOnClickListener(v -> showTab(true));
         btnTabBanned.setOnClickListener(v -> showTab(false));
 
-        showTab(true); // Default to Connected tab
+        showTab(true);
     }
 
     @Override
@@ -130,6 +142,9 @@ public class MainActivity extends AppCompatActivity
         Intent intent = new Intent(this, NetcutService.class);
         startService(intent);
         bindService(intent, connection, Context.BIND_AUTO_CREATE);
+
+        // ✅ Register WiFi state listener for auto-restart
+        registerNetworkCallback();
     }
 
     @Override
@@ -140,6 +155,9 @@ public class MainActivity extends AppCompatActivity
             unbindService(connection);
             bound = false;
         }
+
+        // ✅ Unregister WiFi listener
+        unregisterNetworkCallback();
     }
 
     private void toggleService() {
@@ -191,11 +209,15 @@ public class MainActivity extends AppCompatActivity
         rvBanned.setVisibility(connected ? RecyclerView.GONE : RecyclerView.VISIBLE);
 
         if (connected) {
-            btnTabConnected.setBackgroundColor(0xFF2196F3); btnTabConnected.setTextColor(0xFFFFFFFF);
-            btnTabBanned.setBackgroundColor(0xFFEEEEEE); btnTabBanned.setTextColor(0xFF000000);
+            btnTabConnected.setBackgroundColor(0xFF2196F3);
+            btnTabConnected.setTextColor(0xFFFFFFFF);
+            btnTabBanned.setBackgroundColor(0xFFEEEEEE);
+            btnTabBanned.setTextColor(0xFF000000);
         } else {
-            btnTabBanned.setBackgroundColor(0xFF2196F3); btnTabBanned.setTextColor(0xFFFFFFFF);
-            btnTabConnected.setBackgroundColor(0xFFEEEEEE); btnTabConnected.setTextColor(0xFF000000);
+            btnTabBanned.setBackgroundColor(0xFF2196F3);
+            btnTabBanned.setTextColor(0xFFFFFFFF);
+            btnTabConnected.setBackgroundColor(0xFFEEEEEE);
+            btnTabConnected.setTextColor(0xFF000000);
         }
     }
 
@@ -212,6 +234,10 @@ public class MainActivity extends AppCompatActivity
         tvStats.setText(String.format("Online: %d | Banned: %d", onlineCount, bannedCount));
         btnStart.setText(service.isEngineRunning() ? "Stop Service" : "Start Service");
     }
+
+    // ========================================================================
+    // DeviceAdapter Callbacks
+    // ========================================================================
 
     @Override
     public void onBanClick(Device device, int position) {
@@ -231,9 +257,9 @@ public class MainActivity extends AppCompatActivity
         new Thread(() -> {
             String ip = device.getIp();
             String output = RootManager.execute("ping -c 1 -W 1 " + ip);
-            String msg = (output != null && output.contains("time=")) ?
-                    ip + " is reachable — " + output.substring(output.indexOf("time=") + 5).trim().split(" ")[0] + " ms" :
-                    ip + " is unreachable";
+            String msg = (output != null && output.contains("time="))
+                    ? ip + " is reachable — " + output.substring(output.indexOf("time=") + 5).trim().split(" ")[0] + " ms"
+                    : ip + " is unreachable";
             runOnUiThread(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show());
         }).start();
     }
@@ -255,8 +281,12 @@ public class MainActivity extends AppCompatActivity
         builder.show();
         input.requestFocus();
         InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT);
+        if (imm != null) imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT);
     }
+
+    // ========================================================================
+    // BannedDeviceAdapter Callbacks
+    // ========================================================================
 
     @Override
     public void onUnbanClick(Device device) {
@@ -266,12 +296,14 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // ✅ Service Callbacks
+    // ========================================================================
+    // NetcutService Callbacks
+    // ========================================================================
+
     @Override
     public void onDataChanged() {
         runOnUiThread(() -> {
             refreshUI();
-            // ✅ Stop the swipe refresh spinner when new data arrives
             if (swipeRefresh != null) {
                 swipeRefresh.setRefreshing(false);
             }
@@ -281,5 +313,97 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onToastMessage(String msg) {
         runOnUiThread(() -> Toast.makeText(this, msg, Toast.LENGTH_SHORT).show());
+    }
+
+    // ========================================================================
+    // ✅ NOTIFICATION PERMISSION (Android 13+)
+    // ========================================================================
+
+    private void checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                        NOTIFICATION_PERMISSION_CODE);
+            }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == NOTIFICATION_PERMISSION_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Notification permission granted", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Notification permission denied. Service may be killed in background.", Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    // ========================================================================
+    // ✅ WIFI AUTO-RESTART ON RECONNECTION
+    // ========================================================================
+
+    private void registerNetworkCallback() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) return;
+
+        NetworkRequest request = new NetworkRequest.Builder()
+                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .build();
+
+        networkCallback = new ConnectivityManager.NetworkCallback() {
+
+            @Override
+            public void onAvailable(@NonNull Network network) {
+                // Delay 1.5s to let DHCP assign gateway IP
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    if (bound && service != null && !service.isEngineRunning()) {
+                        String gateway = NetworkScanner.getGatewayIp(MainActivity.this);
+                        String iface = NetworkScanner.getInterfaceName();
+                        if (gateway != null) {
+                            Toast.makeText(MainActivity.this, "WiFi connected. Restarting service...", Toast.LENGTH_SHORT).show();
+                            service.startEngine(iface, gateway);
+                            btnStart.setText("Stop Service");
+                            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                                if (bound && service != null) service.forceScan();
+                            }, 1500);
+                        }
+                    }
+                }, 1500);
+            }
+
+            @Override
+            public void onLost(@NonNull Network network) {
+                runOnUiThread(() -> {
+                    if (bound && service != null && service.isEngineRunning()) {
+                        Toast.makeText(MainActivity.this, "WiFi disconnected. Stopping service...", Toast.LENGTH_SHORT).show();
+                        service.stopEngine();
+                        btnStart.setText("Start Service");
+                    }
+                });
+            }
+        };
+
+        try {
+            cm.registerNetworkCallback(request, networkCallback);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void unregisterNetworkCallback() {
+        if (networkCallback != null) {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm != null) {
+                try {
+                    cm.unregisterNetworkCallback(networkCallback);
+                } catch (Exception ignored) {
+                }
+            }
+            networkCallback = null;
+        }
     }
 }
