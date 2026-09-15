@@ -12,6 +12,8 @@ import android.util.Log;
 import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -24,7 +26,8 @@ public class NetcutService extends Service {
     private ScheduledExecutorService scheduler;
     private ServiceCallback callback;
 
-    // In-memory list for currently scanned devices (Issue 2 Fix)
+    // ✅ Tracks all known devices to accurately mark them as offline when they drop
+    private Map<String, Device> knownDevices = new ConcurrentHashMap<>();
     private List<Device> currentScan = new ArrayList<>();
 
     public class LocalBinder extends Binder {
@@ -51,13 +54,29 @@ public class NetcutService extends Service {
                 .setContentTitle("Netcut Active")
                 .setContentText("Monitoring network and enforcing bans")
                 .setSmallIcon(android.R.drawable.ic_menu_manage)
+                .setOngoing(true)
                 .build();
         startForeground(1, notification);
-        return START_STICKY;
+
+        return START_NOT_STICKY;
     }
 
     @Override
     public IBinder onBind(Intent intent) { return binder; }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        Log.d(TAG, "App removed from recents. Initiating graceful binary shutdown and ARP restore...");
+        killBinaryGracefully();
+        super.onTaskRemoved(rootIntent);
+    }
+
+    @Override
+    public void onDestroy() {
+        Log.d(TAG, "Service destroyed. Ensuring binary is killed...");
+        killBinaryGracefully();
+        super.onDestroy();
+    }
 
     public void startEngine(String iface, String gateway) {
         if (bridge != null && bridge.isRunning()) return;
@@ -71,7 +90,7 @@ public class NetcutService extends Service {
                     startPeriodicScan();
                     notifyToast("Service Started");
                 } else if ("SYNC_COMPLETED".equals(event)) {
-                    notifyToast("Sync Completed");
+                    // notifyToast("Sync Completed");
                 } else if ("ERROR".equals(event)) {
                     notifyToast("Error: " + data.optString("message"));
                 }
@@ -81,10 +100,7 @@ public class NetcutService extends Service {
     }
 
     public void stopEngine() {
-        if (scheduler != null) scheduler.shutdownNow();
-        if (bridge != null) bridge.stop();
-        stopForeground(true);
-        stopSelf();
+        killBinaryGracefully();
     }
 
     public boolean isEngineRunning() {
@@ -95,7 +111,6 @@ public class NetcutService extends Service {
         if (bridge != null) bridge.pingBinary();
     }
 
-    // FIX: Updated to accept IP, as the DB requires it for new entries
     public void banDevice(String mac, String ip) {
         dbHelper.setBanned(mac, ip, true);
         syncBannedDevices();
@@ -108,13 +123,11 @@ public class NetcutService extends Service {
         notifyDataChanged();
     }
 
-    // FIX: Updated to accept IP, as the DB requires it for new entries
     public void updateDeviceName(String mac, String ip, String name) {
         dbHelper.setName(mac, ip, name);
         notifyDataChanged();
     }
 
-    // FIX: Returns the in-memory scanned list instead of querying the DB
     public List<Device> getConnectedDevices() {
         synchronized (currentScan) {
             return new ArrayList<>(currentScan);
@@ -126,32 +139,44 @@ public class NetcutService extends Service {
     }
 
     private void startPeriodicScan() {
-        // FIX (Issue 2): Clear previous scan on restart to ensure a fresh state
-        synchronized (currentScan) {
-            currentScan.clear();
+        if (scheduler != null && !scheduler.isShutdown()) {
+            scheduler.shutdownNow();
         }
 
         scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleWithFixedDelay(() -> {
             List<Device> scanned = NetworkScanner.scanArp(this);
 
-            // Merge with DB for banned/named status
+            // ✅ 1. Mark all currently known devices as offline first
+            for (Device d : knownDevices.values()) {
+                d.setOnline(false);
+            }
+
+            // ✅ 2. Update with freshly scanned devices (they are online)
             for (Device d : scanned) {
                 Device dbDevice = dbHelper.getDevice(d.getMac());
                 if (dbDevice != null) {
                     d.setBanned(dbDevice.isBanned());
-                    // FIX (Issue 3): Only pull name if it was explicitly saved
                     if (dbDevice.getName() != null && !dbDevice.getName().isEmpty()) {
                         d.setName(dbDevice.getName());
                     }
-                    // Update IP in DB if the device is already tracked
                     dbHelper.updateIp(d.getMac(), d.getIp());
                 }
+                d.setOnline(true);
+                knownDevices.put(d.getMac(), d);
             }
 
+            // ✅ 3. Update currentScan for the UI (sort: Online first, then by IP)
             synchronized (currentScan) {
                 currentScan.clear();
-                currentScan.addAll(scanned);
+                List<Device> sortedDevices = new ArrayList<>(knownDevices.values());
+                sortedDevices.sort((d1, d2) -> {
+                    if (d1.isOnline() == d2.isOnline()) {
+                        return d1.getIp().compareTo(d2.getIp());
+                    }
+                    return d1.isOnline() ? -1 : 1; // Online devices appear at the top
+                });
+                currentScan.addAll(sortedDevices);
             }
 
             syncBannedDevices();
@@ -160,7 +185,6 @@ public class NetcutService extends Service {
     }
 
     public void forceScan() {
-        // SAFETY CHECK: Do not attempt to scan if the scheduler is shut down or terminated
         if (scheduler == null || scheduler.isShutdown() || scheduler.isTerminated()) {
             Log.w(TAG, "Cannot force scan: scheduler is not running");
             return;
@@ -168,6 +192,11 @@ public class NetcutService extends Service {
 
         scheduler.execute(() -> {
             List<Device> scanned = NetworkScanner.scanArp(this);
+
+            for (Device d : knownDevices.values()) {
+                d.setOnline(false);
+            }
+
             for (Device d : scanned) {
                 Device dbDevice = dbHelper.getDevice(d.getMac());
                 if (dbDevice != null) {
@@ -177,15 +206,27 @@ public class NetcutService extends Service {
                     }
                     dbHelper.updateIp(d.getMac(), d.getIp());
                 }
+                d.setOnline(true);
+                knownDevices.put(d.getMac(), d);
             }
+
             synchronized (currentScan) {
                 currentScan.clear();
-                currentScan.addAll(scanned);
+                List<Device> sortedDevices = new ArrayList<>(knownDevices.values());
+                sortedDevices.sort((d1, d2) -> {
+                    if (d1.isOnline() == d2.isOnline()) {
+                        return d1.getIp().compareTo(d2.getIp());
+                    }
+                    return d1.isOnline() ? -1 : 1;
+                });
+                currentScan.addAll(sortedDevices);
             }
+
             syncBannedDevices();
             notifyDataChanged();
         });
     }
+
     private void syncBannedDevices() {
         if (bridge != null && bridge.isRunning()) {
             List<Device> targets = dbHelper.getBannedDevices();
@@ -206,7 +247,41 @@ public class NetcutService extends Service {
             NotificationChannel channel = new NotificationChannel(
                     "NETCUT_CHANNEL", "Netcut Service", NotificationManager.IMPORTANCE_LOW);
             NotificationManager manager = getSystemService(NotificationManager.class);
-            manager.createNotificationChannel(channel);
+            if (manager != null) manager.createNotificationChannel(channel);
         }
+    }
+
+    private void killBinaryGracefully() {
+        if (bridge != null && bridge.isRunning()) {
+            bridge.stop();
+        }
+
+        new Thread(() -> {
+            try {
+                String pidOutput = RootManager.execute("pidof netcut");
+                if (pidOutput != null && !pidOutput.trim().isEmpty()) {
+                    String pid = pidOutput.trim().split("\\s+")[0];
+                    Log.d(TAG, "Found netcut PID: " + pid + ". Sending SIGTERM (15) for graceful restore...");
+                    RootManager.execute("kill -15 " + pid);
+
+                    Thread.sleep(2500);
+
+                    String stillRunning = RootManager.execute("pidof netcut");
+                    if (stillRunning != null && !stillRunning.trim().isEmpty()) {
+                        Log.d(TAG, "Force killing (SIGKILL)...");
+                        RootManager.execute("kill -9 " + pid);
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error during graceful kill", e);
+            }
+
+            if (scheduler != null && !scheduler.isShutdown()) {
+                scheduler.shutdownNow();
+            }
+        }).start();
+
+        stopForeground(true);
+        stopSelf();
     }
 }
