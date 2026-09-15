@@ -25,7 +25,10 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
         this.listener = listener;
     }
 
-    // ✅ FIX: Smoothly update the list without recreating the adapter
+    /**
+     * ✅ Smoothly update the list without recreating the adapter
+     * This prevents jerky UI movements and scroll position resets
+     */
     public void updateDevices(List<Device> newDevices) {
         this.devices.clear();
         this.devices.addAll(newDevices);
@@ -46,30 +49,36 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
         holder.tvIp.setText(d.getIp());
         holder.tvMac.setText(d.getMac());
         holder.tvStatus.setText(d.isOnline() ? "Online" : "Offline");
-        holder.tvStatus.setTextColor(d.isOnline() ? 0xFF00C853 : 0xFFFF5252);
+        holder.tvStatus.setTextColor(d.isOnline() ? 0xFF00C853 : 0xFFFF5252); // Green or Red
         holder.btnBan.setText(d.isBanned() ? "Unban" : "Ban");
 
+        // ✅ VISUAL HIGHLIGHTING FOR BANNED DEVICES
         if (d.isBanned()) {
-            holder.itemView.setBackgroundColor(0xFFFFEBEE);
-            holder.tvName.setTextColor(0xFFD32F2F);
-            holder.tvName.setText(d.getName() + " 🚫");
+            holder.itemView.setBackgroundColor(0xFFFFEBEE); // Light red background
+            holder.tvName.setTextColor(0xFFD32F2F);         // Dark red text
+            holder.tvName.setText(d.getName() + " 🚫");     // Add a banned icon to the name
         } else {
-            holder.itemView.setBackgroundColor(0xFFFFFFFF);
-            holder.tvName.setTextColor(0xFF212121);
-            holder.tvName.setText(d.getName());
+            holder.itemView.setBackgroundColor(0xFFFFFFFF); // Clean white background
+            holder.tvName.setTextColor(0xFF212121);         // Standard dark text
+            holder.tvName.setText(d.getName());             // Normal name
         }
 
         holder.tvName.setOnClickListener(v -> listener.onNameClick(d));
+
+        // ✅ PASS THE CURRENT POSITION TO THE LISTENER for instant UI updates
         holder.btnBan.setOnClickListener(v -> listener.onBanClick(d, holder.getBindingAdapterPosition()));
         holder.btnPing.setOnClickListener(v -> listener.onPingClick(d));
     }
 
     @Override
-    public int getItemCount() { return devices.size(); }
+    public int getItemCount() {
+        return devices.size();
+    }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
         TextView tvName, tvIp, tvMac, tvStatus;
         Button btnBan, btnPing;
+
         ViewHolder(View v) {
             super(v);
             tvName = v.findViewById(R.id.tv_name);

@@ -5,9 +5,15 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
 import android.os.Binder;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Log;
 import org.json.JSONObject;
 import java.util.ArrayList;
@@ -26,8 +32,13 @@ public class NetcutService extends Service {
     private ScheduledExecutorService scheduler;
     private ServiceCallback callback;
 
+    // ✅ Tracks all known devices to accurately mark them as offline when they drop
     private Map<String, Device> knownDevices = new ConcurrentHashMap<>();
     private List<Device> currentScan = new ArrayList<>();
+
+    // ✅ WiFi monitoring callback (lives in Service so it works in background)
+    private ConnectivityManager.NetworkCallback networkCallback;
+    private Handler mainHandler = new Handler(Looper.getMainLooper());
 
     public class LocalBinder extends Binder {
         public NetcutService getService() { return NetcutService.this; }
@@ -45,6 +56,9 @@ public class NetcutService extends Service {
         super.onCreate();
         dbHelper = new DeviceDbHelper(this);
         createNotificationChannel();
+
+        // ✅ Register WiFi listener in Service so it survives background
+        registerNetworkCallback();
     }
 
     @Override
@@ -63,7 +77,7 @@ public class NetcutService extends Service {
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        Log.d(TAG, "App removed from recents. Initiating detached binary shutdown...");
+        Log.d(TAG, "App removed from recents. Initiating graceful binary shutdown and ARP restore...");
         killBinaryGracefully();
         super.onTaskRemoved(rootIntent);
     }
@@ -71,6 +85,7 @@ public class NetcutService extends Service {
     @Override
     public void onDestroy() {
         Log.d(TAG, "Service destroyed. Ensuring binary is killed...");
+        unregisterNetworkCallback();
         killBinaryGracefully();
         super.onDestroy();
     }
@@ -78,7 +93,7 @@ public class NetcutService extends Service {
     public void startEngine(String iface, String gateway) {
         if (bridge != null && bridge.isRunning()) return;
 
-        // ✅ FIX 1: Clear memory completely on start to prevent stale caching
+        // ✅ FIX: Clear memory completely on start to prevent stale caching
         knownDevices.clear();
         synchronized (currentScan) { currentScan.clear(); }
         notifyDataChanged();
@@ -207,15 +222,84 @@ public class NetcutService extends Service {
         }
     }
 
-    // ✅ FIX 2: Detached shell survives app death, ensuring Rust binary finishes ARP restoration
+    // ========================================================================
+    // ✅ WIFI AUTO-RESTART (Lives in Service → works in background)
+    // ========================================================================
+
+    private void registerNetworkCallback() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (cm == null) return;
+
+        NetworkRequest request = new NetworkRequest.Builder()
+                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .build();
+
+        networkCallback = new ConnectivityManager.NetworkCallback() {
+
+            @Override
+            public void onAvailable(Network network) {
+                Log.d(TAG, "WiFi available detected in background service");
+                // Delay to let DHCP assign gateway IP
+                mainHandler.postDelayed(() -> {
+                    if (bridge == null || !bridge.isRunning()) {
+                        String gateway = NetworkScanner.getGatewayIp(NetcutService.this);
+                        String iface = NetworkScanner.getInterfaceName();
+                        if (gateway != null) {
+                            Log.d(TAG, "WiFi reconnected. Auto-restarting engine...");
+                            notifyToast("WiFi connected. Restarting service...");
+                            startEngine(iface, gateway);
+                            // Delay scan to let engine initialize
+                            mainHandler.postDelayed(() -> forceScan(), 1500);
+                        }
+                    }
+                }, 1500);
+            }
+
+            @Override
+            public void onLost(Network network) {
+                Log.d(TAG, "WiFi lost detected in background service");
+                mainHandler.post(() -> {
+                    if (bridge != null && bridge.isRunning()) {
+                        Log.d(TAG, "WiFi disconnected. Stopping engine...");
+                        notifyToast("WiFi disconnected. Stopping service...");
+                        stopEngine();
+                    }
+                });
+            }
+        };
+
+        try {
+            cm.registerNetworkCallback(request, networkCallback);
+            Log.d(TAG, "WiFi NetworkCallback registered in Service");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to register network callback", e);
+        }
+    }
+
+    private void unregisterNetworkCallback() {
+        if (networkCallback != null) {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+            if (cm != null) {
+                try {
+                    cm.unregisterNetworkCallback(networkCallback);
+                    Log.d(TAG, "WiFi NetworkCallback unregistered");
+                } catch (Exception ignored) {}
+            }
+            networkCallback = null;
+        }
+    }
+
+    // ========================================================================
+    // ✅ GRACEFUL KILL (Detached shell survives app process death)
+    // ========================================================================
+
     private void killBinaryGracefully() {
         if (bridge != null && bridge.isRunning()) {
-            bridge.stop(); // Send quit via stdin
+            bridge.stop();
         }
 
         try {
-            // setsid detaches this shell from the app's lifecycle.
-            // It will send SIGTERM, wait 3 seconds for Rust to restore ARP, then SIGKILL.
+            // Detached shell survives app death
             Runtime.getRuntime().exec(new String[]{"su", "-c",
                     "setsid sh -c 'pidof netcut | xargs -r kill -15; sleep 3; pidof netcut | xargs -r kill -9' >/dev/null 2>&1 &"});
             Log.d(TAG, "Detached kill process spawned. App can now die safely.");
