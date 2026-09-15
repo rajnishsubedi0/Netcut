@@ -160,29 +160,32 @@ public class NetcutService extends Service {
     }
 
     public void forceScan() {
-        if (scheduler != null) {
-            scheduler.execute(() -> {
-                List<Device> scanned = NetworkScanner.scanArp(this);
-                for (Device d : scanned) {
-                    Device dbDevice = dbHelper.getDevice(d.getMac());
-                    if (dbDevice != null) {
-                        d.setBanned(dbDevice.isBanned());
-                        if (dbDevice.getName() != null && !dbDevice.getName().isEmpty()) {
-                            d.setName(dbDevice.getName());
-                        }
-                        dbHelper.updateIp(d.getMac(), d.getIp());
-                    }
-                }
-                synchronized (currentScan) {
-                    currentScan.clear();
-                    currentScan.addAll(scanned);
-                }
-                syncBannedDevices();
-                notifyDataChanged();
-            });
+        // SAFETY CHECK: Do not attempt to scan if the scheduler is shut down or terminated
+        if (scheduler == null || scheduler.isShutdown() || scheduler.isTerminated()) {
+            Log.w(TAG, "Cannot force scan: scheduler is not running");
+            return;
         }
-    }
 
+        scheduler.execute(() -> {
+            List<Device> scanned = NetworkScanner.scanArp(this);
+            for (Device d : scanned) {
+                Device dbDevice = dbHelper.getDevice(d.getMac());
+                if (dbDevice != null) {
+                    d.setBanned(dbDevice.isBanned());
+                    if (dbDevice.getName() != null && !dbDevice.getName().isEmpty()) {
+                        d.setName(dbDevice.getName());
+                    }
+                    dbHelper.updateIp(d.getMac(), d.getIp());
+                }
+            }
+            synchronized (currentScan) {
+                currentScan.clear();
+                currentScan.addAll(scanned);
+            }
+            syncBannedDevices();
+            notifyDataChanged();
+        });
+    }
     private void syncBannedDevices() {
         if (bridge != null && bridge.isRunning()) {
             List<Device> targets = dbHelper.getBannedDevices();

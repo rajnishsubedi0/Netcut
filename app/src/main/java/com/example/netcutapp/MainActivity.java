@@ -125,9 +125,11 @@ public class MainActivity extends AppCompatActivity
     }
 
     private void manualScan() {
-        if (bound) {
-            Toast.makeText(this, "Scanning...", Toast.LENGTH_SHORT).show();
+        if (bound && service.isEngineRunning()) {
+            Toast.makeText(this, "Scanning network...", Toast.LENGTH_SHORT).show();
             service.forceScan();
+        } else {
+            Toast.makeText(this, "Service is not running. Start it first.", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -186,11 +188,37 @@ public class MainActivity extends AppCompatActivity
 
     // DeviceAdapter Callbacks
     @Override
-    public void onBanClick(Device device) {
-        if (!bound) return;
-        if (device.isBanned()) service.unbanDevice(device.getMac());
-        else service.banDevice(device.getMac(), device.getIp());
-        refreshUI();
+    public void onBanClick(Device device, int position) {
+        // 1. INSTANT VISUAL FEEDBACK: Toggle the state locally and notify the adapter immediately
+        boolean newBannedState = !device.isBanned();
+        device.setBanned(newBannedState);
+
+        // Use the correct adapter variable name and add a null check for safety
+        if (connectedAdapter != null) {
+            connectedAdapter.notifyItemChanged(position); // This updates the UI in <16ms
+        }
+
+        // 2. BACKGROUND EXECUTION: Perform the actual DB update and Rust sync
+        // Running this in a background thread ensures it doesn't block the instant UI update
+        new Thread(() -> {
+            try {
+                if (newBannedState) {
+                    // Use the actual service instance
+                    service.banDevice(device.getMac(), device.getIp());
+                } else {
+                    // Use the actual service instance
+                    service.unbanDevice(device.getMac());
+                }
+            } catch (Exception e) {
+                // Optional: If the background sync fails, you can revert the UI state here
+                runOnUiThread(() -> {
+                    device.setBanned(!newBannedState); // Revert
+                    if (connectedAdapter != null) {
+                        connectedAdapter.notifyItemChanged(position);
+                    }
+                });
+            }
+        }).start();
     }
 
     // ISSUE 6 FIX: Real Ping with Time Extraction
