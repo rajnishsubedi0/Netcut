@@ -5,8 +5,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.TextView;
+
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,7 +25,6 @@ public class BannedDeviceAdapter extends RecyclerView.Adapter<BannedDeviceAdapte
         this.listener = listener;
     }
 
-    // ✅ FIX: Smoothly update the list
     public void updateDevices(List<Device> newDevices) {
         this.devices.clear();
         this.devices.addAll(newDevices);
@@ -33,7 +34,8 @@ public class BannedDeviceAdapter extends RecyclerView.Adapter<BannedDeviceAdapte
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_banned_device, parent, false);
+        View v = LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.item_banned_device, parent, false);
         return new ViewHolder(v);
     }
 
@@ -52,6 +54,7 @@ public class BannedDeviceAdapter extends RecyclerView.Adapter<BannedDeviceAdapte
     static class ViewHolder extends RecyclerView.ViewHolder {
         TextView tvName, tvIp, tvMac;
         Button btnUnban;
+
         ViewHolder(View v) {
             super(v);
             tvName = v.findViewById(R.id.tv_name);

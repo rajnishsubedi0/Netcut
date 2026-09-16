@@ -5,6 +5,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,233 +37,140 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
         db.execSQL("DROP TABLE IF EXISTS " + TABLE);
         onCreate(db);
     }
-    public List<Device> getSavedDevices() {
+
+    @Override
+    public void onConfigure(SQLiteDatabase db) {
+        super.onConfigure(db);
+        db.enableWriteAheadLogging(); // Better concurrency
+    }
+
+    public synchronized List<Device> getSavedDevices() {
         List<Device> list = new ArrayList<>();
-
         SQLiteDatabase db = getReadableDatabase();
-
         String selection = COL_BANNED + " = 1 OR (" +
                 COL_NAME + " IS NOT NULL AND " + COL_NAME + " != '')";
-
-        Cursor c = null;
-
-        try {
-            c = db.query(
-                    TABLE,
-                    null,
-                    selection,
-                    null,
-                    null,
-                    null,
-                    COL_BANNED + " DESC, " + COL_IP + " ASC"
-            );
-
+        try (Cursor c = db.query(TABLE, null, selection, null, null, null,
+                COL_BANNED + " DESC, " + COL_IP + " ASC")) {
             while (c.moveToNext()) {
                 list.add(cursorToDevice(c));
             }
-        } finally {
-            if (c != null) {
-                c.close();
-            }
+        } catch (Exception e) {
+            // Log error
         }
-
         return list;
     }
-    // Fetch a specific device (only exists if banned or named)
-    public Device getDevice(String mac) {
-        if (isEmpty(mac)) return null;
 
-        mac = mac.trim();
-
+    public synchronized Device getDevice(String mac) {
+        if (mac == null || mac.trim().isEmpty()) return null;
+        mac = Device.normalizeMac(mac);
         SQLiteDatabase db = getReadableDatabase();
-        Cursor c = null;
-
-        try {
-            c = db.query(
-                    TABLE,
-                    null,
-                    COL_MAC + "=?",
-                    new String[]{mac},
-                    null,
-                    null,
-                    null
-            );
-
+        try (Cursor c = db.query(TABLE, null, COL_MAC + "=?",
+                new String[]{mac}, null, null, null)) {
             if (c.moveToFirst()) {
                 return cursorToDevice(c);
             }
-
-            return null;
-        } finally {
-            if (c != null) {
-                c.close();
-            }
+        } catch (Exception e) {
+            // Log error
         }
+        return null;
     }
 
-    // Update IP for an existing DB device
-    public void updateIp(String mac, String ip) {
-        if (isEmpty(mac) || isEmpty(ip)) return;
-
+    public synchronized void updateIp(String mac, String ip) {
+        if (mac == null || mac.trim().isEmpty() || ip == null || ip.trim().isEmpty()) return;
+        mac = Device.normalizeMac(mac);
         SQLiteDatabase db = getWritableDatabase();
-
         ContentValues values = new ContentValues();
         values.put(COL_IP, ip.trim());
-
-        db.update(
-                TABLE,
-                values,
-                COL_MAC + "=?",
-                new String[]{mac.trim()}
-        );
+        db.update(TABLE, values, COL_MAC + "=?", new String[]{mac});
     }
 
-    // Ban/Unban (Ensures device is saved to DB)
-    public void setBanned(String mac, String ip, boolean isBanned) {
-        if (isEmpty(mac)) return;
-
-        mac = mac.trim();
-
+    public synchronized void setBanned(String mac, String ip, boolean isBanned) {
+        if (mac == null || mac.trim().isEmpty()) return;
+        mac = Device.normalizeMac(mac);
         SQLiteDatabase db = getWritableDatabase();
 
-        // If unbanning a device that was never saved, do not create a useless row.
-        if (!isBanned && !deviceExists(db, mac)) {
-            return;
-        }
+        if (!isBanned && !deviceExists(db, mac)) return;
 
         ContentValues values = new ContentValues();
         values.put(COL_BANNED, isBanned ? 1 : 0);
-
-        if (!isEmpty(ip)) {
+        if (ip != null && !ip.trim().isEmpty()) {
             values.put(COL_IP, ip.trim());
         }
 
-        Cursor c = null;
-
-        try {
-            c = db.query(
-                    TABLE,
-                    new String[]{COL_NAME},
-                    COL_MAC + "=?",
-                    new String[]{mac},
-                    null,
-                    null,
-                    null
-            );
-
+        // Check if device exists and preserve name
+        try (Cursor c = db.query(TABLE, new String[]{COL_NAME},
+                COL_MAC + "=?", new String[]{mac}, null, null, null)) {
             if (c.moveToFirst()) {
-                // Preserve existing name
                 String existingName = c.getString(c.getColumnIndexOrThrow(COL_NAME));
-
                 if (existingName == null) {
                     values.putNull(COL_NAME);
                 } else {
                     values.put(COL_NAME, existingName);
                 }
-
-                int updated = db.update(
-                        TABLE,
-                        values,
-                        COL_MAC + "=?",
-                        new String[]{mac}
-                );
-
-                if (updated > 0) {
-                    return;
-                }
-            }
-        } finally {
-            if (c != null) {
-                c.close();
+                int updated = db.update(TABLE, values, COL_MAC + "=?", new String[]{mac});
+                if (updated > 0) return;
             }
         }
 
-        // Insert new device only if it does not exist
+        // Insert new device
         values.put(COL_MAC, mac);
-
-        if (!values.containsKey(COL_IP)) {
-            values.put(COL_IP, "");
-        }
-
-        if (!values.containsKey(COL_NAME)) {
-            values.putNull(COL_NAME);
-        }
-
+        if (!values.containsKey(COL_IP)) values.put(COL_IP, "");
+        if (!values.containsKey(COL_NAME)) values.putNull(COL_NAME);
         db.insertWithOnConflict(TABLE, null, values, SQLiteDatabase.CONFLICT_REPLACE);
     }
 
-    // Name device (Ensures device is saved to DB)
-    public void setName(String mac, String ip, String name) {
-        if (isEmpty(mac)) return;
-
-        mac = mac.trim();
-
+    public synchronized void setName(String mac, String ip, String name) {
+        if (mac == null || mac.trim().isEmpty()) return;
+        mac = Device.normalizeMac(mac);
         String safeName = name == null ? "" : name.trim();
-
         SQLiteDatabase db = getWritableDatabase();
 
         ContentValues values = new ContentValues();
         values.put(COL_NAME, safeName);
-
-        if (!isEmpty(ip)) {
+        if (ip != null && !ip.trim().isEmpty()) {
             values.put(COL_IP, ip.trim());
         }
 
-        Cursor c = null;
-
-        try {
-            c = db.query(
-                    TABLE,
-                    new String[]{COL_BANNED},
-                    COL_MAC + "=?",
-                    new String[]{mac},
-                    null,
-                    null,
-                    null
-            );
-
+        try (Cursor c = db.query(TABLE, new String[]{COL_BANNED},
+                COL_MAC + "=?", new String[]{mac}, null, null, null)) {
             if (c.moveToFirst()) {
-                // Preserve existing banned state
                 int existingBanned = c.getInt(c.getColumnIndexOrThrow(COL_BANNED));
                 values.put(COL_BANNED, existingBanned);
-
-                int updated = db.update(
-                        TABLE,
-                        values,
-                        COL_MAC + "=?",
-                        new String[]{mac}
-                );
-
-                if (updated > 0) {
-                    return;
-                }
-            }
-        } finally {
-            if (c != null) {
-                c.close();
+                int updated = db.update(TABLE, values, COL_MAC + "=?", new String[]{mac});
+                if (updated > 0) return;
             }
         }
 
-        // Insert new row if device does not exist yet
         values.put(COL_MAC, mac);
         values.put(COL_BANNED, 0);
-
-        if (!values.containsKey(COL_IP)) {
-            values.put(COL_IP, "");
-        }
-
+        if (!values.containsKey(COL_IP)) values.put(COL_IP, "");
         db.insertWithOnConflict(TABLE, null, values, SQLiteDatabase.CONFLICT_REPLACE);
     }
 
-    public List<Device> getBannedDevices() {
+    public synchronized List<Device> getBannedDevices() {
         List<Device> list = new ArrayList<>();
         SQLiteDatabase db = getReadableDatabase();
-        Cursor c = db.query(TABLE, null, COL_BANNED + "=?", new String[]{"1"}, null, null, null);
-        while (c.moveToNext()) {
-            list.add(cursorToDevice(c));
+        try (Cursor c = db.query(TABLE, null, COL_BANNED + "=?",
+                new String[]{"1"}, null, null, null)) {
+            while (c.moveToNext()) {
+                Device d = cursorToDevice(c);
+                d.setOnline(false); // DB devices are not necessarily online
+                list.add(d);
+            }
+        } catch (Exception e) {
+            // Log error
         }
-        c.close();
         return list;
+    }
+
+    /**
+     * Batch unban all devices.
+     */
+    public synchronized void unbanAll() {
+        SQLiteDatabase db = getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COL_BANNED, 0);
+        db.update(TABLE, values, COL_BANNED + "=?", new String[]{"1"});
     }
 
     private Device cursorToDevice(Cursor c) {
@@ -272,30 +180,14 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
                 c.getString(c.getColumnIndexOrThrow(COL_IP)),
                 name,
                 c.getInt(c.getColumnIndexOrThrow(COL_BANNED)) == 1,
-                true // If it's in the DB, we consider it known
+                false // Default to offline; scan will update
         );
-    }
-    private boolean isEmpty(String value) {
-        return value == null || value.trim().isEmpty();
     }
 
     private boolean deviceExists(SQLiteDatabase db, String mac) {
-        Cursor c = null;
-        try {
-            c = db.query(
-                    TABLE,
-                    new String[]{COL_MAC},
-                    COL_MAC + "=?",
-                    new String[]{mac},
-                    null,
-                    null,
-                    null
-            );
+        try (Cursor c = db.query(TABLE, new String[]{COL_MAC},
+                COL_MAC + "=?", new String[]{mac}, null, null, null)) {
             return c.moveToFirst();
-        } finally {
-            if (c != null) {
-                c.close();
-            }
         }
     }
 }

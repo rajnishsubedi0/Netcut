@@ -36,7 +36,11 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import java.util.ArrayList;
-import java.util.List;public class MainActivity extends AppCompatActivity
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class MainActivity extends AppCompatActivity
         implements DeviceAdapter.OnDeviceActionListener,
         BannedDeviceAdapter.OnUnbanListener,
         NetcutService.ServiceCallback {
@@ -45,9 +49,6 @@ import java.util.List;public class MainActivity extends AppCompatActivity
     private static final int NOTIFICATION_PERMISSION_CODE = 101;
     private static final String PREFS_NAME = "netcut_prefs";
     private static final String KEY_OEM_HINT_SHOWN = "oem_hint_shown";
-
-    // ✅ Resets to false when the app process is killed and restarted (= each app boot).
-    // This ensures the battery warning re-appears on EVERY fresh launch until granted.
     private static boolean batteryWarningShownThisSession = false;
 
     private NetcutService service;
@@ -59,16 +60,16 @@ import java.util.List;public class MainActivity extends AppCompatActivity
     private Button btnStart, btnBanAll, btnRestoreAll, btnTabConnected, btnTabBanned;
     private SwipeRefreshLayout swipeRefresh;
 
+    // ✅ Background executor for root checks
+    private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
     private ServiceConnection connection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder binder) {
             service = ((NetcutService.LocalBinder) binder).getService();
             service.setCallback(MainActivity.this);
             bound = true;
-
-            // ✅ No auto-start on fresh app boot.
-            // Service starts only when the user presses Start Service.
-
             refreshUI();
         }
 
@@ -88,10 +89,10 @@ import java.util.List;public class MainActivity extends AppCompatActivity
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
-        checkRootAccess();
+        checkRootAccessAsync();
         checkNotificationPermission();
         checkArchitectureSupport();
-        showOemBatteryHint(); // one-time guidance for aggressive OEMs
+        showOemBatteryHint();
 
         rvConnected = findViewById(R.id.rv_connected);
         rvBanned = findViewById(R.id.rv_banned);
@@ -101,9 +102,8 @@ import java.util.List;public class MainActivity extends AppCompatActivity
         btnRestoreAll = findViewById(R.id.btn_restore_all);
         btnTabConnected = findViewById(R.id.btn_tab_connected);
         btnTabBanned = findViewById(R.id.btn_tab_banned);
-
-        // ✅ SwipeRefreshLayout
         swipeRefresh = findViewById(R.id.swipe_refresh);
+
         swipeRefresh.setDistanceToTriggerSync(550);
         swipeRefresh.setOnRefreshListener(() -> {
             if (bound && service != null && service.isEngineRunning()) {
@@ -117,28 +117,26 @@ import java.util.List;public class MainActivity extends AppCompatActivity
                 swipeRefresh.setRefreshing(false);
             }
         });
+
         rvConnected.setLayoutManager(new LinearLayoutManager(this));
         rvBanned.setLayoutManager(new LinearLayoutManager(this));
 
-        // Initialize adapters ONCE to prevent jerky UI movements
         connectedAdapter = new DeviceAdapter(new ArrayList<>(), this);
         bannedAdapter = new BannedDeviceAdapter(new ArrayList<>(), this);
         rvConnected.setAdapter(connectedAdapter);
         rvBanned.setAdapter(bannedAdapter);
 
         btnStart.setOnClickListener(v -> toggleService());
-        btnBanAll.setOnClickListener(v -> banAll());
+        btnBanAll.setOnClickListener(v -> confirmBanAll());
         btnRestoreAll.setOnClickListener(v -> restoreAll());
         btnTabConnected.setOnClickListener(v -> showTab(true));
         btnTabBanned.setOnClickListener(v -> showTab(false));
-
         showTab(true);
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-
         Intent intent = new Intent(this, NetcutService.class);
         bindService(intent, connection, Context.BIND_AUTO_CREATE);
     }
@@ -146,8 +144,6 @@ import java.util.List;public class MainActivity extends AppCompatActivity
     @Override
     protected void onResume() {
         super.onResume();
-        // ✅ Battery optimization check runs on every resume (and every app boot).
-        // Placed in onResume so it fires after returning from the settings screen too.
         checkBatteryOptimization();
     }
 
@@ -161,28 +157,38 @@ import java.util.List;public class MainActivity extends AppCompatActivity
         }
     }
 
-    // ========================================================================
-    // ✅ PERMISSION 1: ROOT ACCESS (blocking)
-    // ========================================================================
-    private void checkRootAccess() {
-        if (!RootManager.isRooted()) {
-            new AlertDialog.Builder(this)
-                    .setTitle("⚠ Root Access Required")
-                    .setMessage("This app REQUIRES root to function. It uses root for:\n\n" +
-                            "• Sending ARP packets (raw sockets)\n" +
-                            "• Reading the network device list\n" +
-                            "• Running the netcut engine\n\n" +
-                            "Please grant root (Magisk/SuperSU) to this app, then retry.")
-                    .setCancelable(false)
-                    .setPositiveButton("Retry Check", (d, w) -> checkRootAccess())
-                    .setNegativeButton("Exit App", (d, w) -> finish())
-                    .show();
-        }
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        ioExecutor.shutdownNow();
     }
 
     // ========================================================================
-    // ✅ PERMISSION 2: NOTIFICATIONS (Android 13+ runtime permission)
+    // ✅ ROOT CHECK (ASYNC)
     // ========================================================================
+
+    private void checkRootAccessAsync() {
+        ioExecutor.execute(() -> {
+            boolean rooted = RootManager.isRooted();
+            mainHandler.post(() -> {
+                if (!rooted && !isFinishing()) {
+                    new AlertDialog.Builder(this)
+                            .setTitle("⚠ Root Access Required")
+                            .setMessage("This app REQUIRES root to function.\n\n" +
+                                    "Please grant root (Magisk/SuperSU), then retry.")
+                            .setCancelable(false)
+                            .setPositiveButton("Retry Check", (d, w) -> checkRootAccessAsync())
+                            .setNegativeButton("Exit App", (d, w) -> finish())
+                            .show();
+                }
+            });
+        });
+    }
+
+    // ========================================================================
+    // ✅ NOTIFICATION PERMISSION
+    // ========================================================================
+
     private void checkNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -200,34 +206,24 @@ import java.util.List;public class MainActivity extends AppCompatActivity
         if (requestCode == NOTIFICATION_PERMISSION_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 Toast.makeText(this, "Notification permission granted ✔", Toast.LENGTH_SHORT).show();
-            } else {
-                new AlertDialog.Builder(this)
-                        .setTitle("Notifications Disabled")
-                        .setMessage("Without notification permission, Android may kill the background service aggressively. " +
-                                "Banned devices could regain internet access when the app is in the background.\n\n" +
-                                "It is strongly recommended to allow notifications.")
-                        .setPositiveButton("OK", null)
-                        .show();
             }
         }
     }
 
     // ========================================================================
-    // ✅ PERMISSION 3: BATTERY OPTIMIZATION (mandatory, re-asked every boot)
+    // ✅ BATTERY OPTIMIZATION
     // ========================================================================
+
     private void checkBatteryOptimization() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
             if (pm == null) return;
-
             if (!pm.isIgnoringBatteryOptimizations(getPackageName())) {
                 if (!batteryWarningShownThisSession) {
-                    // First time this app boot → show the full explanatory dialog
                     showBatteryOptimizationDialog();
                 } else {
-                    // Already asked this session but user returned without granting → subtle reminder
                     Toast.makeText(this,
-                            "⚠ Battery optimization is still ON. Background service may be killed.",
+                            "⚠ Battery optimization is still ON.",
                             Toast.LENGTH_LONG).show();
                 }
             }
@@ -237,10 +233,8 @@ import java.util.List;public class MainActivity extends AppCompatActivity
     private void showBatteryOptimizationDialog() {
         new AlertDialog.Builder(this)
                 .setTitle("🔋 Disable Battery Optimization")
-                .setMessage("This app must run continuously in the background to keep devices banned.\n\n" +
-                        "If Android optimizes this app's battery, the OS will KILL the service when the screen turns off, " +
-                        "and all banned devices will instantly regain internet access.\n\n" +
-                        "Tap 'Allow Now'. A system popup will appear — just tap ALLOW.")
+                .setMessage("This app must run continuously to keep devices banned.\n\n" +
+                        "Tap 'Allow Now' to exclude this app from battery optimization.")
                 .setCancelable(false)
                 .setPositiveButton("Allow Now", (d, w) -> {
                     batteryWarningShownThisSession = true;
@@ -248,71 +242,48 @@ import java.util.List;public class MainActivity extends AppCompatActivity
                 })
                 .setNegativeButton("Not Now", (d, w) -> {
                     batteryWarningShownThisSession = true;
-                    Toast.makeText(this,
-                            "Warning: service may stop when the app is in background.",
-                            Toast.LENGTH_LONG).show();
                 })
                 .show();
     }
 
-    /**
-     * Opens Android's native "Ignore battery optimizations" popup.
-     * Falls back gracefully if the direct popup is blocked (some OEMs restrict it).
-     */
     private void requestIgnoreBatteryOptimizations() {
         try {
-            // ✅ BEST: Direct system popup (one-tap "Allow" for the user)
             Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
             intent.setData(Uri.parse("package:" + getPackageName()));
             startActivity(intent);
         } catch (Exception e) {
             try {
-                // Fallback 1: Battery optimization list screen
-                Intent intent = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
-                startActivity(intent);
-                Toast.makeText(this,
-                        "Find this app in the list → choose 'Don't optimize'",
-                        Toast.LENGTH_LONG).show();
-            } catch (Exception e2) {
-                try {
-                    // Fallback 2: General settings
-                    startActivity(new Intent(Settings.ACTION_SETTINGS));
-                    Toast.makeText(this,
-                            "Go to Battery settings and exclude this app manually",
-                            Toast.LENGTH_LONG).show();
-                } catch (Exception ignored) {
-                }
-            }
+                startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+            } catch (Exception ignored) {}
         }
     }
 
     // ========================================================================
-    // ✅ OEM-SPECIFIC BATTERY SAVER GUIDANCE (shown once ever)
+    // ✅ OEM HINTS
     // ========================================================================
+
     private void showOemBatteryHint() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         if (prefs.getBoolean(KEY_OEM_HINT_SHOWN, false)) return;
 
         String manufacturer = Build.MANUFACTURER.toLowerCase();
         String hint = null;
-
         if (manufacturer.contains("samsung")) {
-            hint = "Samsung detected: Also go to Settings → Battery → Background usage limits → add this app to 'Never sleeping apps'.";
+            hint = "Samsung: Add this app to 'Never sleeping apps' in Battery settings.";
         } else if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi")) {
-            hint = "Xiaomi detected: Also go to Settings → Apps → this app → Battery saver → select 'No restrictions'.";
+            hint = "Xiaomi: Set battery saver to 'No restrictions' for this app.";
         } else if (manufacturer.contains("huawei") || manufacturer.contains("honor")) {
-            hint = "Huawei detected: Also go to Settings → Battery → App launch → this app → enable 'Manage manually'.";
+            hint = "Huawei: Enable 'Manage manually' in App launch settings.";
         } else if (manufacturer.contains("oneplus")) {
-            hint = "OnePlus detected: Also go to Settings → Battery → App optimization → this app → 'Don't optimize'.";
+            hint = "OnePlus: Set battery optimization to 'Don't optimize'.";
         } else if (manufacturer.contains("oppo") || manufacturer.contains("realme")) {
-            hint = "Oppo/Realme detected: Also allow this app in 'Auto-start' and set battery to 'Allow background activity'.";
+            hint = "Oppo/Realme: Allow auto-start and background activity.";
         }
 
         if (hint != null) {
-            String finalHint = hint;
             new AlertDialog.Builder(this)
                     .setTitle("Device-Specific Setup")
-                    .setMessage(finalHint + "\n\nThis extra step prevents your device manufacturer from killing the app.")
+                    .setMessage(hint)
                     .setPositiveButton("Got it", (d, w) ->
                             prefs.edit().putBoolean(KEY_OEM_HINT_SHOWN, true).apply())
                     .setCancelable(false)
@@ -323,53 +294,56 @@ import java.util.List;public class MainActivity extends AppCompatActivity
     }
 
     // ========================================================================
-    // Existing app logic (unchanged)
+    // ✅ SERVICE CONTROL
     // ========================================================================
 
     private void toggleService() {
         if (!bound) return;
-
         if (service.isManualModeActive()) {
             service.manualStop();
             btnStart.setText("Start Service");
         } else {
-            // Ensure the service is actually started before requesting foreground work.
             startService(new Intent(this, NetcutService.class));
-
             service.manualStart();
             btnStart.setText("Stop Service");
         }
     }
 
+    /**
+     * ✅ Confirmation dialog before banning all devices.
+     */
+    private void confirmBanAll() {
+        if (!bound) return;
+        new AlertDialog.Builder(this)
+                .setTitle("Ban All Devices?")
+                .setMessage("This will disconnect ALL online devices from the network.\n\n" +
+                        "This may affect other users. Are you sure?")
+                .setPositiveButton("Ban All", (d, w) -> banAll())
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
     private void banAll() {
         if (!bound) return;
+        List<Device> toBan = new ArrayList<>();
         for (Device d : service.getConnectedDevices()) {
             if (d.isOnline()) {
-                d.setBanned(true);
-                service.banDevice(d.getMac(), d.getIp());
+                toBan.add(d);
             }
         }
-        if (connectedAdapter != null) connectedAdapter.notifyDataSetChanged();
+        if (!toBan.isEmpty()) {
+            service.banDevices(toBan);
+        }
     }
 
     private void restoreAll() {
         if (!bound) return;
-        for (Device d : service.getConnectedDevices()) {
-            d.setBanned(false);
-        }
-        if (connectedAdapter != null) connectedAdapter.notifyDataSetChanged();
-
-        new Thread(() -> {
-            for (Device d : service.getBannedDevices()) {
-                service.unbanDevice(d.getMac());
-            }
-        }).start();
+        service.unbanAllDevices();
     }
 
     private void showTab(boolean connected) {
         rvConnected.setVisibility(connected ? RecyclerView.VISIBLE : RecyclerView.GONE);
         rvBanned.setVisibility(connected ? RecyclerView.GONE : RecyclerView.VISIBLE);
-
         if (connected) {
             btnTabConnected.setBackgroundColor(0xFF2196F3);
             btnTabConnected.setTextColor(0xFFFFFFFF);
@@ -384,7 +358,7 @@ import java.util.List;public class MainActivity extends AppCompatActivity
     }
 
     private void refreshUI() {
-        if (!bound) return;
+        if (!bound || isFinishing()) return;
 
         List<Device> connected = service.getConnectedDevices();
         List<Device> banned = service.getBannedDevices();
@@ -392,10 +366,12 @@ import java.util.List;public class MainActivity extends AppCompatActivity
         connectedAdapter.updateDevices(connected);
         bannedAdapter.updateDevices(banned);
 
-        long onlineCount = connected.stream().filter(Device::isOnline).count();
-        long bannedCount = banned.size();
+        int onlineCount = 0;
+        for (Device d : connected) {
+            if (d.isOnline()) onlineCount++;
+        }
 
-        tvStats.setText(String.format("Online: %d | Banned: %d", onlineCount, bannedCount));
+        tvStats.setText(String.format("Online: %d | Banned: %d", onlineCount, banned.size()));
 
         if (service.isManualModeActive()) {
             if (!service.isEngineRunning() && service.isWaitingForWifi()) {
@@ -408,30 +384,43 @@ import java.util.List;public class MainActivity extends AppCompatActivity
         }
     }
 
-    // DeviceAdapter Callbacks
+    // ========================================================================
+    // ✅ DEVICE ADAPTER CALLBACKS
+    // ========================================================================
+
     @Override
     public void onBanClick(Device device, int position) {
         boolean newBannedState = !device.isBanned();
         device.setBanned(newBannedState);
         if (connectedAdapter != null) connectedAdapter.notifyItemChanged(position);
 
-        new Thread(() -> {
-            if (newBannedState) service.banDevice(device.getMac(), device.getIp());
-            else service.unbanDevice(device.getMac());
-        }).start();
+        ioExecutor.execute(() -> {
+            if (newBannedState) {
+                service.banDevice(device.getMac(), device.getIp());
+            } else {
+                service.unbanDevice(device.getMac());
+            }
+        });
     }
 
     @Override
     public void onPingClick(Device device) {
-        Toast.makeText(this, "Pinging " + device.getIp() + "...", Toast.LENGTH_SHORT).show();
-        new Thread(() -> {
-            String ip = device.getIp();
-            String output = RootManager.execute("ping -c 1 -W 1 " + ip);
+        String ip = device.getIp();
+        if (!Device.isValidIpv4(ip)) return;
+
+        Toast.makeText(this, "Pinging " + ip + "...", Toast.LENGTH_SHORT).show();
+        ioExecutor.execute(() -> {
+            String output = RootManager.execute("ping -c 1 -W 1 " + ip, 5000);
             String msg = (output != null && output.contains("time="))
-                    ? ip + " is reachable — " + output.substring(output.indexOf("time=") + 5).trim().split(" ")[0] + " ms"
+                    ? ip + " is reachable — " +
+                      output.substring(output.indexOf("time=") + 5).trim().split(" ")[0] + " ms"
                     : ip + " is unreachable";
-            runOnUiThread(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show());
-        }).start();
+            mainHandler.post(() -> {
+                if (!isFinishing()) {
+                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+                }
+            });
+        });
     }
 
     @Override
@@ -443,7 +432,8 @@ import java.util.List;public class MainActivity extends AppCompatActivity
         builder.setView(input);
         builder.setPositiveButton("Save", (dialog, which) -> {
             if (bound) {
-                service.updateDeviceName(device.getMac(), device.getIp(), input.getText().toString());
+                service.updateDeviceName(device.getMac(), device.getIp(),
+                        input.getText().toString());
                 refreshUI();
             }
         });
@@ -454,44 +444,53 @@ import java.util.List;public class MainActivity extends AppCompatActivity
         if (imm != null) imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT);
     }
 
-    // BannedDeviceAdapter Callbacks
     @Override
     public void onUnbanClick(Device device) {
         if (bound) {
-            service.unbanDevice(device.getMac());
-            refreshUI();
+            ioExecutor.execute(() -> service.unbanDevice(device.getMac()));
+            mainHandler.postDelayed(this::refreshUI, 500);
         }
     }
+
+    // ========================================================================
+    // ✅ ARCHITECTURE CHECK
+    // ========================================================================
+
     private void checkArchitectureSupport() {
         BinaryManager bm = new BinaryManager(this);
         String arch = bm.detectArchitecture();
-
         if (arch == null) {
             new AlertDialog.Builder(this)
                     .setTitle("❌ Unsupported Architecture")
                     .setMessage("This device uses an unsupported CPU architecture.\n\n" +
                             "Detected ABIs: " + java.util.Arrays.toString(Build.SUPPORTED_ABIS) + "\n\n" +
-                            "This app only supports:\n• arm64-v8a (64-bit ARM)\n• armeabi-v7a (32-bit ARM)\n\n" +
-                            "The app cannot function on this device.")
+                            "Only arm64-v8a and armeabi-v7a are supported.")
                     .setCancelable(false)
                     .setPositiveButton("Exit", (d, w) -> finish())
                     .show();
-        } else {
-            Log.d("MainActivity", "Architecture supported: " + arch +
-                    " | ABIs: " + java.util.Arrays.toString(Build.SUPPORTED_ABIS));
         }
     }
-    // Service Callbacks
+
+    // ========================================================================
+    // ✅ SERVICE CALLBACKS
+    // ========================================================================
+
     @Override
     public void onDataChanged() {
         runOnUiThread(() -> {
-            refreshUI();
-            if (swipeRefresh != null) swipeRefresh.setRefreshing(false);
+            if (!isFinishing()) {
+                refreshUI();
+                if (swipeRefresh != null) swipeRefresh.setRefreshing(false);
+            }
         });
     }
 
     @Override
     public void onToastMessage(String msg) {
-        runOnUiThread(() -> Toast.makeText(this, msg, Toast.LENGTH_SHORT).show());
+        runOnUiThread(() -> {
+            if (!isFinishing()) {
+                Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 }
