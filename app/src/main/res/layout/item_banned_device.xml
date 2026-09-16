@@ -4,11 +4,36 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="8dp"
-    android:layout_marginBottom="4dp"
-    >
+    android:layout_marginBottom="4dp">
 
-    <TextView android:id="@+id/tv_name" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="16sp" android:textStyle="bold" />
-    <TextView android:id="@+id/tv_ip" android:layout_width="match_parent" android:layout_height="wrap_content" />
-    <TextView android:id="@+id/tv_mac" android:layout_width="match_parent" android:layout_height="wrap_content" />
-    <Button android:id="@+id/btn_unban" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Unban" android:layout_marginTop="4dp"/>
+    <TextView
+        android:id="@+id/tv_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tv_ip"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <TextView
+        android:id="@+id/tv_mac"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <TextView
+        android:id="@+id/tv_last_seen"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="12sp" />
+
+    <Button
+        android:id="@+id/btn_unban"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Unban"
+        android:layout_marginTop="4dp" />
+
 </LinearLayout>

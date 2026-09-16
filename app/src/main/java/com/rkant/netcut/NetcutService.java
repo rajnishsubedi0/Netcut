@@ -3,9 +3,11 @@ package com.rkant.netcut;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -17,7 +19,6 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
-import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
 
@@ -37,10 +38,18 @@ public class NetcutService extends Service {
 
     private static final String TAG = "NetcutService";
 
-    // Increased restore timeout.
-    //
-    // Patched main2.rs caps restore time at 5 seconds.
-    // Android side waits 9 seconds to be safe.
+    public static final String PREFS_NAME = "netcut_prefs";
+    public static final String KEY_SCAN_INTERVAL = "scan_interval_sec";
+    public static final String KEY_UNKNOWN_ALERTS = "unknown_device_alerts";
+
+    public static final String ACTION_START = "com.rkant.netcut.ACTION_START";
+    public static final String ACTION_STOP = "com.rkant.netcut.ACTION_STOP";
+    public static final String ACTION_RESTORE = "com.rkant.netcut.ACTION_RESTORE";
+    public static final String ACTION_APPLY_SETTINGS = "com.rkant.netcut.ACTION_APPLY_SETTINGS";
+
+    private static final String CHANNEL_ID = "NETCUT_CHANNEL";
+    private static final String ALERT_CHANNEL_ID = "NETCUT_ALERT_CHANNEL";
+
     private static final long RESTORE_TIMEOUT_MS = 9000L;
     private static final long EXIT_TIMEOUT_MS = 3000L;
 
@@ -51,7 +60,6 @@ public class NetcutService extends Service {
     private final AtomicBoolean isTransitioning = new AtomicBoolean(false);
 
     private final Handler syncHandler = new Handler(Looper.getMainLooper());
-
     private final Runnable syncRunnable = new Runnable() {
         @Override
         public void run() {
@@ -59,7 +67,7 @@ public class NetcutService extends Service {
                 List<Device> activeBanned = new ArrayList<>();
 
                 for (Device d : knownDevices.values()) {
-                    if (d.isBanned() && d.isOnline() &&
+                    if (d.isBanned() && !d.isProtected() && d.isOnline() &&
                             Device.isValidIpv4(d.getIp()) && Device.isValidMac(d.getMac())) {
                         activeBanned.add(d);
                     }
@@ -79,11 +87,11 @@ public class NetcutService extends Service {
     private BinaryManager binaryManager;
     private String binaryPath = null;
 
-    private Map<String, Device> knownDevices = new ConcurrentHashMap<>();
-    private List<Device> currentScan = new ArrayList<>();
+    private final Map<String, Device> knownDevices = new ConcurrentHashMap<>();
+    private final List<Device> currentScan = new ArrayList<>();
 
     private ConnectivityManager.NetworkCallback networkCallback;
-    private Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private PowerManager.WakeLock wakeLock;
     private WifiManager.WifiLock wifiLock;
@@ -99,6 +107,7 @@ public class NetcutService extends Service {
     public interface ServiceCallback {
         void onDataChanged();
         void onToastMessage(String msg);
+        void onNewDeviceDetected(Device device);
     }
 
     public void setCallback(ServiceCallback cb) {
@@ -108,16 +117,50 @@ public class NetcutService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-
         dbHelper = new DeviceDbHelper(this);
         binaryManager = new BinaryManager(this);
-
         createNotificationChannel();
         registerNetworkCallback();
+        LogStore.i("NetcutService created");
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        String action = intent != null ? intent.getAction() : null;
+
+        if (action != null) {
+            switch (action) {
+                case ACTION_START:
+                    LogStore.i("Notification action: START");
+                    if (!userRequestedRunning) {
+                        manualStart();
+                    }
+                    break;
+
+                case ACTION_STOP:
+                    LogStore.i("Notification action: STOP");
+                    manualStop();
+                    return START_NOT_STICKY;
+
+                case ACTION_RESTORE:
+                    LogStore.i("Notification action: RESTORE ALL");
+                    unbanAllDevices();
+                    if (!userRequestedRunning) {
+                        stopSelf();
+                    }
+                    break;
+
+                case ACTION_APPLY_SETTINGS:
+                    LogStore.i("Notification/action: APPLY SETTINGS");
+                    if (userRequestedRunning && isEngineRunning()) {
+                        startPeriodicScan();
+                    } else if (!userRequestedRunning) {
+                        stopSelf();
+                    }
+                    break;
+            }
+        }
+
         if (userRequestedRunning || isEngineRunning()) {
             showForegroundNotification(
                     waitingForWifi ? "Netcut Waiting" : "Netcut Active",
@@ -135,41 +178,31 @@ public class NetcutService extends Service {
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        Log.d(TAG, "App removed from recents. Stopping and restoring...");
-
+        LogStore.i("App removed from recents. Stopping and restoring...");
         userRequestedRunning = false;
         waitingForWifi = false;
         pendingStartAttempt = false;
-
         mainHandler.removeCallbacksAndMessages(null);
-
         killBinaryGracefully();
-
         super.onTaskRemoved(rootIntent);
     }
 
     @Override
     public void onDestroy() {
-        Log.d(TAG, "Service destroyed.");
-
+        LogStore.i("Service destroyed");
         userRequestedRunning = false;
         waitingForWifi = false;
         pendingStartAttempt = false;
-
         unregisterNetworkCallback();
 
         boolean hadBridge = bridge != null;
-
         stopBridgeOnly();
 
-        // If a stop thread was spawned, that thread releases locks after restore.
-        // If there was no bridge, release locks immediately.
         if (!hadBridge) {
             releaseLocks();
         }
 
         ioExecutor.shutdownNow();
-
         super.onDestroy();
     }
 
@@ -179,10 +212,11 @@ public class NetcutService extends Service {
 
     public void manualStart() {
         if (isTransitioning.getAndSet(true)) {
-            Log.w(TAG, "Start blocked: already transitioning");
             notifyToast("Please wait...");
             return;
         }
+
+        LogStore.i("Manual start requested");
 
         userRequestedRunning = true;
         waitingForWifi = false;
@@ -196,19 +230,18 @@ public class NetcutService extends Service {
 
     public void manualStop() {
         if (isTransitioning.getAndSet(true)) {
-            Log.w(TAG, "Stop blocked: already transitioning");
             notifyToast("Please wait...");
             return;
         }
+
+        LogStore.i("Manual stop requested");
 
         userRequestedRunning = false;
         waitingForWifi = false;
         pendingStartAttempt = false;
 
         mainHandler.removeCallbacksAndMessages(null);
-
         killBinaryGracefully();
-
         notifyDataChanged();
 
         mainHandler.postDelayed(() -> isTransitioning.set(false), 3000);
@@ -246,13 +279,12 @@ public class NetcutService extends Service {
         }
 
         if (binaryPath == null) {
-            Log.e(TAG, "Binary preparation failed.");
+            LogStore.e("Binary preparation failed");
             notifyToast("Error: Failed to prepare native binary.");
             return false;
         }
 
         showForegroundNotification("Netcut Starting", "Starting engine...");
-
         acquireLocks();
 
         bridge = new RustBridge();
@@ -264,26 +296,23 @@ public class NetcutService extends Service {
                 new RustBridge.BridgeEventListener() {
                     @Override
                     public void onEvent(String event, JSONObject data) {
-                        Log.i(TAG, "Event: " + event);
+                        LogStore.i("Engine event: " + event);
 
                         if ("SERVICE_STARTED".equals(event)) {
                             waitingForWifi = false;
-
                             startPeriodicScan();
                             syncBannedDevices();
-
                             showForegroundNotification(
                                     "Netcut Active",
                                     "Monitoring network and enforcing bans"
                             );
-
                             notifyToast("Service Started");
                         } else if ("ERROR".equals(event)) {
                             String code = data.optString("code", "");
-
                             if ("NETWORK_CHANGED".equals(code) || "INTERFACE_DOWN".equals(code)) {
                                 handleNetworkLost();
                             } else {
+                                LogStore.e("Engine error: " + data.optString("message"));
                                 notifyToast("Error: " + data.optString("message"));
                             }
                         }
@@ -293,7 +322,7 @@ public class NetcutService extends Service {
 
                     @Override
                     public void onBridgeExited() {
-                        Log.w(TAG, "Rust bridge exited unexpectedly");
+                        LogStore.w("Rust bridge exited unexpectedly");
 
                         if (userRequestedRunning) {
                             mainHandler.post(() -> {
@@ -324,46 +353,82 @@ public class NetcutService extends Service {
     }
 
     // ========================================================================
-    // BAN / UNBAN
+    // BAN / UNBAN / PROTECT
     // ========================================================================
 
     public void banDevice(String mac, String ip) {
         if (mac == null) return;
-
         mac = Device.normalizeMac(mac);
+
+        if (isDeviceProtected(mac)) {
+            LogStore.w("Ban blocked: device is protected: " + mac);
+            notifyToast("Cannot ban protected device");
+            notifyDataChanged();
+            return;
+        }
+
+        LogStore.i("Ban device: " + mac);
 
         dbHelper.setBanned(mac, ip, true);
         updateDeviceBanStateInMemory(mac, ip, true);
-
         syncBannedDevices();
         notifyDataChanged();
     }
 
     public void unbanDevice(String mac) {
         if (mac == null) return;
-
         mac = Device.normalizeMac(mac);
+
+        LogStore.i("Unban device: " + mac);
 
         dbHelper.setBanned(mac, null, false);
         updateDeviceBanStateInMemory(mac, null, false);
-
         syncBannedDevices();
         notifyDataChanged();
     }
 
     public void banDevices(List<Device> devices) {
+        int count = 0;
+        int skipped = 0;
+
         for (Device d : devices) {
             String mac = Device.normalizeMac(d.getMac());
 
+            if (isDeviceProtected(mac)) {
+                skipped++;
+                continue;
+            }
+
             dbHelper.setBanned(mac, d.getIp(), true);
             updateDeviceBanStateInMemory(mac, d.getIp(), true);
+            count++;
         }
+
+        LogStore.i("Batch ban: banned=" + count + ", skipped protected=" + skipped);
+
+        syncBannedDevices();
+        notifyDataChanged();
+    }
+
+    public void unbanDevices(List<Device> devices) {
+        int count = 0;
+
+        for (Device d : devices) {
+            String mac = Device.normalizeMac(d.getMac());
+            dbHelper.setBanned(mac, null, false);
+            updateDeviceBanStateInMemory(mac, null, false);
+            count++;
+        }
+
+        LogStore.i("Batch unban: count=" + count);
 
         syncBannedDevices();
         notifyDataChanged();
     }
 
     public void unbanAllDevices() {
+        LogStore.i("Restore all devices");
+
         dbHelper.unbanAll();
 
         for (Device d : knownDevices.values()) {
@@ -380,20 +445,45 @@ public class NetcutService extends Service {
         notifyDataChanged();
     }
 
+    public void setProtected(String mac, boolean protect) {
+        if (mac == null) return;
+        mac = Device.normalizeMac(mac);
+
+        LogStore.i((protect ? "Protect" : "Unprotect") + " device: " + mac);
+
+        dbHelper.setProtected(mac, protect);
+
+        if (protect) {
+            dbHelper.setBanned(mac, null, false);
+            updateDeviceBanStateInMemory(mac, null, false);
+        }
+
+        updateDeviceProtectedStateInMemory(mac, protect);
+        syncBannedDevices();
+        notifyDataChanged();
+    }
+
+    private boolean isDeviceProtected(String mac) {
+        Device known = knownDevices.get(mac);
+        if (known != null && known.isProtected()) return true;
+
+        Device db = dbHelper.getDevice(mac);
+        return db != null && db.isProtected();
+    }
+
     public void updateDeviceName(String mac, String ip, String name) {
         if (mac == null) return;
-
         mac = Device.normalizeMac(mac);
+
+        LogStore.i("Rename device: " + mac + " -> " + name);
 
         dbHelper.setName(mac, ip, name);
 
         String safeName = name == null ? "" : name.trim();
 
         Device known = knownDevices.get(mac);
-
         if (known != null) {
             known.setName(safeName);
-
             if (ip != null && !ip.trim().isEmpty()) {
                 known.setIp(ip.trim());
             }
@@ -403,11 +493,9 @@ public class NetcutService extends Service {
             for (Device d : currentScan) {
                 if (mac.equals(d.getMac())) {
                     d.setName(safeName);
-
                     if (ip != null && !ip.trim().isEmpty()) {
                         d.setIp(ip.trim());
                     }
-
                     break;
                 }
             }
@@ -446,23 +534,38 @@ public class NetcutService extends Service {
     // SCANNING
     // ========================================================================
 
+    private int getScanIntervalSecs() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        int interval = prefs.getInt(KEY_SCAN_INTERVAL, 15);
+        if (interval < 5) interval = 5;
+        if (interval > 300) interval = 300;
+        return interval;
+    }
+
     private void startPeriodicScan() {
         if (scheduler != null && !scheduler.isShutdown()) {
             scheduler.shutdownNow();
         }
 
-        scheduler = Executors.newSingleThreadScheduledExecutor();
+        int interval = getScanIntervalSecs();
+        LogStore.i("Starting periodic scan every " + interval + "s");
 
+        scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleWithFixedDelay(
                 this::performScan,
                 0,
-                15,
+                interval,
                 TimeUnit.SECONDS
         );
     }
 
     private void performScan() {
         try {
+            long now = System.currentTimeMillis();
+
+            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+            boolean unknownAlerts = prefs.getBoolean(KEY_UNKNOWN_ALERTS, true);
+
             List<Device> scanned = NetworkScanner.scanArp(this);
 
             for (Device d : knownDevices.values()) {
@@ -473,18 +576,38 @@ public class NetcutService extends Service {
                 String mac = Device.normalizeMac(d.getMac());
 
                 Device dbDevice = dbHelper.getDevice(mac);
+                boolean isNewDevice = dbDevice == null && !knownDevices.containsKey(mac);
+
+                long firstSeen = dbDevice != null && dbDevice.getFirstSeen() > 0
+                        ? dbDevice.getFirstSeen()
+                        : now;
+
+                d.setFirstSeen(firstSeen);
+                d.setLastSeen(now);
+                d.setOnline(true);
 
                 if (dbDevice != null) {
                     d.setBanned(dbDevice.isBanned());
+                    d.setProtected(dbDevice.isProtected());
 
-                    if (dbDevice.getName() != null && !dbDevice.getName().isEmpty()) {
-                        d.setName(dbDevice.getName());
+                    if (dbDevice.getRawName() != null && !dbDevice.getRawName().trim().isEmpty()) {
+                        d.setName(dbDevice.getRawName());
                     }
-
-                    dbHelper.updateIp(mac, d.getIp());
+                } else {
+                    d.setBanned(false);
+                    d.setProtected(false);
                 }
 
-                d.setOnline(true);
+                dbHelper.touchDevice(mac, d.getIp(), firstSeen, now);
+
+                if (isNewDevice && unknownAlerts) {
+                    LogStore.i("New device detected: " + mac + " / " + d.getIp());
+                    showNewDeviceNotification(d);
+
+                    if (callback != null) {
+                        mainHandler.post(() -> callback.onNewDeviceDetected(d));
+                    }
+                }
 
                 knownDevices.put(mac, d);
             }
@@ -493,7 +616,6 @@ public class NetcutService extends Service {
                 currentScan.clear();
 
                 List<Device> onlineOnly = new ArrayList<>();
-
                 for (Device d : knownDevices.values()) {
                     if (d.isOnline()) {
                         onlineOnly.add(d);
@@ -501,20 +623,19 @@ public class NetcutService extends Service {
                 }
 
                 onlineOnly.sort(this::compareIpv4);
-
                 currentScan.addAll(onlineOnly);
             }
 
             syncBannedDevices();
             notifyDataChanged();
+
         } catch (Exception e) {
-            Log.e(TAG, "Scan failed", e);
+            LogStore.e("Scan failed: " + e.getMessage());
         }
     }
 
     public void forceScan() {
         if (scheduler == null || scheduler.isShutdown()) return;
-
         scheduler.execute(this::performScan);
     }
 
@@ -536,22 +657,14 @@ public class NetcutService extends Service {
         }
 
         if (b != null) {
-            // Important fix:
-            //
-            // Do NOT use ioExecutor here.
-            //
-            // onDestroy() calls ioExecutor.shutdownNow(), which can interrupt
-            // the graceful restore wait and cause the native binary to be killed
-            // before ARP restore completes.
-            //
-            // A dedicated non-daemon thread gives the restore process a better
-            // chance to finish even if the app is removed from recents.
             Thread stopThread = new Thread(() -> {
                 boolean exited = b.stopAndWait(RESTORE_TIMEOUT_MS, EXIT_TIMEOUT_MS);
 
                 if (!exited) {
-                    Log.w(TAG, "Binary did not exit gracefully. Spawning delayed kill.");
+                    LogStore.w("Binary did not exit gracefully. Spawning delayed kill.");
                     spawnDelayedKill();
+                } else {
+                    LogStore.i("Binary exited gracefully");
                 }
 
                 releaseLocks();
@@ -596,9 +709,10 @@ public class NetcutService extends Service {
                     "setsid sh -c '" + escaped + "' >/dev/null 2>&1 &"
             });
 
-            Log.d(TAG, "Delayed kill spawned.");
+            LogStore.i("Delayed kill spawned");
+
         } catch (Exception e) {
-            Log.e(TAG, "Failed to spawn delayed kill", e);
+            LogStore.e("Failed to spawn delayed kill: " + e.getMessage());
         }
     }
 
@@ -608,13 +722,11 @@ public class NetcutService extends Service {
 
     private void handleNetworkLost() {
         if (!userRequestedRunning) return;
-
-        mainHandler.post(() -> pauseEngineForWifiLoss());
+        mainHandler.post(this::pauseEngineForWifiLoss);
     }
 
     private void registerNetworkCallback() {
         ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-
         if (cm == null) return;
 
         NetworkRequest request = new NetworkRequest.Builder()
@@ -633,7 +745,6 @@ public class NetcutService extends Service {
             @Override
             public void onLost(Network network) {
                 if (!userRequestedRunning) return;
-
                 mainHandler.post(() -> pauseEngineForWifiLoss());
             }
         };
@@ -641,27 +752,27 @@ public class NetcutService extends Service {
         try {
             cm.registerNetworkCallback(request, networkCallback);
         } catch (Exception e) {
-            Log.e(TAG, "Failed to register network callback", e);
+            LogStore.e("Failed to register network callback: " + e.getMessage());
         }
     }
 
     private void unregisterNetworkCallback() {
         if (networkCallback != null) {
             ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-
             if (cm != null) {
                 try {
                     cm.unregisterNetworkCallback(networkCallback);
                 } catch (Exception ignored) {
                 }
             }
-
             networkCallback = null;
         }
     }
 
     private void pauseEngineForWifiLoss() {
         if (!userRequestedRunning) return;
+
+        LogStore.w("WiFi lost. Pausing engine.");
 
         stopBridgeOnly();
 
@@ -676,7 +787,6 @@ public class NetcutService extends Service {
         if (!userRequestedRunning || pendingStartAttempt) return;
 
         pendingStartAttempt = true;
-
         ioExecutor.execute(() -> attemptStartEngine(30));
     }
 
@@ -702,11 +812,8 @@ public class NetcutService extends Service {
 
             if (started) {
                 pendingStartAttempt = false;
-
                 mainHandler.postDelayed(this::forceScan, 1000);
-
                 notifyDataChanged();
-
                 return;
             }
         }
@@ -744,20 +851,18 @@ public class NetcutService extends Service {
     private void acquireLocks() {
         try {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-
             if (pm != null && wakeLock == null) {
                 wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "netcut:engine");
                 wakeLock.acquire(30 * 60 * 1000L);
             }
 
             WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-
             if (wm != null && wifiLock == null) {
                 wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "netcut:wifi");
                 wifiLock.acquire();
             }
         } catch (Exception e) {
-            Log.e(TAG, "Failed to acquire locks", e);
+            LogStore.e("Failed to acquire locks: " + e.getMessage());
         }
     }
 
@@ -773,7 +878,7 @@ public class NetcutService extends Service {
                 wifiLock = null;
             }
         } catch (Exception e) {
-            Log.e(TAG, "Failed to release locks", e);
+            LogStore.e("Failed to release locks: " + e.getMessage());
         }
     }
 
@@ -794,7 +899,6 @@ public class NetcutService extends Service {
             for (int i = 0; i < 4; i++) {
                 int x = Integer.parseInt(p1[i]);
                 int y = Integer.parseInt(p2[i]);
-
                 if (x != y) return Integer.compare(x, y);
             }
 
@@ -807,14 +911,11 @@ public class NetcutService extends Service {
 
     private void updateDeviceBanStateInMemory(String mac, String ip, boolean banned) {
         if (mac == null) return;
-
         mac = Device.normalizeMac(mac);
 
         Device known = knownDevices.get(mac);
-
         if (known != null) {
             known.setBanned(banned);
-
             if (ip != null && !ip.trim().isEmpty()) {
                 known.setIp(ip.trim());
             }
@@ -824,11 +925,28 @@ public class NetcutService extends Service {
             for (Device d : currentScan) {
                 if (mac.equals(d.getMac())) {
                     d.setBanned(banned);
-
                     if (ip != null && !ip.trim().isEmpty()) {
                         d.setIp(ip.trim());
                     }
+                    break;
+                }
+            }
+        }
+    }
 
+    private void updateDeviceProtectedStateInMemory(String mac, boolean protect) {
+        if (mac == null) return;
+        mac = Device.normalizeMac(mac);
+
+        Device known = knownDevices.get(mac);
+        if (known != null) {
+            known.setProtected(protect);
+        }
+
+        synchronized (currentScan) {
+            for (Device d : currentScan) {
+                if (mac.equals(d.getMac())) {
+                    d.setProtected(protect);
                     break;
                 }
             }
@@ -837,40 +955,77 @@ public class NetcutService extends Service {
 
     private void notifyDataChanged() {
         if (callback != null) {
-            callback.onDataChanged();
+            mainHandler.post(() -> callback.onDataChanged());
         }
     }
 
     private void notifyToast(String msg) {
         if (callback != null) {
-            callback.onToastMessage(msg);
+            mainHandler.post(() -> callback.onToastMessage(msg));
         }
     }
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
-                    "NETCUT_CHANNEL",
+                    CHANNEL_ID,
                     "Netcut Service",
                     NotificationManager.IMPORTANCE_LOW
             );
 
-            NotificationManager manager = getSystemService(NotificationManager.class);
+            NotificationChannel alertChannel = new NotificationChannel(
+                    ALERT_CHANNEL_ID,
+                    "Netcut Alerts",
+                    NotificationManager.IMPORTANCE_HIGH
+            );
 
+            NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
                 manager.createNotificationChannel(channel);
+                manager.createNotificationChannel(alertChannel);
             }
         }
     }
 
+    private PendingIntent serviceActionIntent(String action) {
+        Intent intent = new Intent(this, NetcutService.class);
+        intent.setAction(action);
+
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+
+        return PendingIntent.getService(
+                this,
+                action.hashCode(),
+                intent,
+                flags
+        );
+    }
+
     private void showForegroundNotification(String title, String text) {
         try {
-            Notification notification = new NotificationCompat.Builder(this, "NETCUT_CHANNEL")
-                    .setContentTitle(title)
-                    .setContentText(text)
-                    .setSmallIcon(android.R.drawable.ic_menu_manage)
-                    .setOngoing(true)
-                    .build();
+            NotificationCompat.Builder builder =
+                    new NotificationCompat.Builder(this, CHANNEL_ID)
+                            .setContentTitle(title)
+                            .setContentText(text)
+                            .setSmallIcon(android.R.drawable.ic_menu_manage)
+                            .setOngoing(true)
+                            .setSilent(true)
+                            .clearActions()
+                            .addAction(
+                                    android.R.drawable.ic_menu_close_clear_cancel,
+                                    "Stop",
+                                    serviceActionIntent(ACTION_STOP)
+                            )
+                            .addAction(
+                                    android.R.drawable.ic_menu_revert,
+                                    "Restore All",
+                                    serviceActionIntent(ACTION_RESTORE)
+                            );
+
+            Notification notification = builder.build();
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 try {
@@ -880,14 +1035,38 @@ public class NetcutService extends Service {
                             android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
                     );
                 } catch (IllegalArgumentException e) {
-                    Log.w(TAG, "Foreground type mismatch, falling back to default", e);
                     startForeground(1, notification);
                 }
             } else {
                 startForeground(1, notification);
             }
+
         } catch (Exception e) {
-            Log.e(TAG, "Notification update failed", e);
+            LogStore.e("Notification update failed: " + e.getMessage());
+        }
+    }
+
+    private void showNewDeviceNotification(Device device) {
+        try {
+            NotificationCompat.Builder builder =
+                    new NotificationCompat.Builder(this, ALERT_CHANNEL_ID)
+                            .setSmallIcon(android.R.drawable.ic_dialog_info)
+                            .setContentTitle("New device detected")
+                            .setContentText(device.getIp() + " • " + device.getMac())
+                            .setStyle(new NotificationCompat.BigTextStyle()
+                                    .bigText("New device detected\nIP: " + device.getIp() +
+                                            "\nMAC: " + device.getMac()))
+                            .setAutoCancel(true);
+
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.notify(
+                        Math.abs(device.getMac().hashCode()),
+                        builder.build()
+                );
+            }
+        } catch (Exception e) {
+            LogStore.e("New device notification failed: " + e.getMessage());
         }
     }
 }

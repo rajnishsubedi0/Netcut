@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/tv_sheet_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Device"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tv_sheet_ip"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="IP" />
+
+    <TextView
+        android:id="@+id/tv_sheet_mac"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="MAC" />
+
+    <TextView
+        android:id="@+id/tv_sheet_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Status" />
+
+    <TextView
+        android:id="@+id/tv_sheet_first_seen"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="First seen" />
+
+    <TextView
+        android:id="@+id/tv_sheet_last_seen"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Last seen" />
+
+    <Button
+        android:id="@+id/btn_sheet_ban"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Ban Device"
+        android:layout_marginTop="8dp" />
+
+    <Button
+        android:id="@+id/btn_sheet_protect"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Protect Device" />
+
+    <Button
+        android:id="@+id/btn_sheet_ping"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Ping" />
+
+    <Button
+        android:id="@+id/btn_sheet_rename"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Rename" />
+
+    <Button
+        android:id="@+id/btn_sheet_close"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Close" />
+
+</LinearLayout>

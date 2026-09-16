@@ -35,5 +35,12 @@
             android:exported="false"
             android:stopWithTask="true"
             android:foregroundServiceType="dataSync" />
+        <activity
+            android:name=".LogsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false" />
     </application>
 </manifest>
