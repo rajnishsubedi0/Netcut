@@ -57,16 +57,46 @@ public class RustBridge {
     }
 
     public void stop() {
+        if (!isRunning && process == null && executor == null) return;
+
         isRunning = false;
+
         try {
+            // First ask the engine to restore all banned targets.
+            restoreAllTargets();
+
+            // Then ask it to quit.
             sendCommand(createCommand("quit"));
-            if (process != null) {
-                process.waitFor();
-                process.destroy();
+
+            // Give the native binary a small window to process restore/quit.
+            // This is important for instant internet restoration.
+            Thread.sleep(200);
+        } catch (Exception ignored) {
+        }
+
+        try {
+            if (stdin != null) {
+                stdin.close();
             }
-            if (executor != null) executor.shutdownNow();
-        } catch (Exception e) {
-            Log.e(TAG, "Error stopping bridge", e);
+        } catch (Exception ignored) {
+        }
+
+        if (executor != null) {
+            executor.shutdownNow();
+        }
+
+        if (process != null) {
+            try {
+                process.destroy();
+
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    boolean exited = process.waitFor(300, java.util.concurrent.TimeUnit.MILLISECONDS);
+                    if (!exited) {
+                        process.destroyForcibly();
+                    }
+                }
+            } catch (Exception ignored) {
+            }
         }
     }
 
@@ -135,6 +165,15 @@ public class RustBridge {
             Log.e(TAG, "Read loop crashed", e);
         } finally {
             isRunning = false;
+        }
+    }
+    public void restoreAllTargets() {
+        try {
+            JSONObject cmd = createCommand("sync");
+            cmd.put("targets", new JSONArray());
+            sendCommand(cmd);
+        } catch (Exception e) {
+            Log.e(TAG, "Restore all targets failed", e);
         }
     }
 }

@@ -32,6 +32,7 @@
             android:name=".NetcutService"
             android:enabled="true"
             android:exported="false"
+            android:stopWithTask="true"
             android:foregroundServiceType="specialUse" />
     </application>
 </manifest>

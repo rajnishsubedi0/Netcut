@@ -81,12 +81,15 @@ public class NetcutService extends Service {
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        if (!userRequestedRunning) {
-            Log.d(TAG, "App removed and service was not manually enabled. Stopping...");
-            killBinaryGracefully();
-        } else {
-            Log.d(TAG, "App removed, but service was manually enabled. Keeping alive for WiFi events.");
-        }
+        Log.d(TAG, "App removed from recents. Stopping service and restoring internet immediately.");
+
+        userRequestedRunning = false;
+        waitingForWifi = false;
+        pendingStartAttempt = false;
+
+        mainHandler.removeCallbacksAndMessages(null);
+
+        killBinaryGracefully();
 
         super.onTaskRemoved(rootIntent);
     }
@@ -109,8 +112,14 @@ public class NetcutService extends Service {
     @Override
     public void onDestroy() {
         Log.d(TAG, "Service destroyed. Ensuring binary is killed...");
+
+        userRequestedRunning = false;
+        waitingForWifi = false;
+        pendingStartAttempt = false;
+
         unregisterNetworkCallback();
         stopBridgeOnly();
+
         super.onDestroy();
     }
 
@@ -414,8 +423,23 @@ public class NetcutService extends Service {
 
     private void spawnDetachedKill() {
         try {
-            Runtime.getRuntime().exec(new String[]{"su", "-c",
-                    "setsid sh -c 'pidof netcut_arm64 2>/dev/null || pidof netcut_armeabi 2>/dev/null || pidof netcut 2>/dev/null | xargs -r kill -15; sleep 3; pidof netcut_arm64 2>/dev/null || pidof netcut_armeabi 2>/dev/null || pidof netcut 2>/dev/null | xargs -r kill -9' >/dev/null 2>&1 &"});
+            String script =
+                    "for name in netcut_arm64 netcut_armeabi netcut; do " +
+                            "pids=$(pidof $name 2>/dev/null); " +
+                            "[ -n \"$pids\" ] && kill -15 $pids 2>/dev/null; " +
+                            "done; " +
+                            "sleep 0.3; " +
+                            "for name in netcut_arm64 netcut_armeabi netcut; do " +
+                            "pids=$(pidof $name 2>/dev/null); " +
+                            "[ -n \"$pids\" ] && kill -9 $pids 2>/dev/null; " +
+                            "done";
+
+            String escaped = script.replace("'", "'\\''");
+
+            Runtime.getRuntime().exec(new String[]{
+                    "su", "-c",
+                    "setsid sh -c '" + escaped + "' >/dev/null 2>&1 &"
+            });
 
             Log.d(TAG, "Detached kill process spawned.");
         } catch (Exception e) {
@@ -424,12 +448,15 @@ public class NetcutService extends Service {
     }
     private void showForegroundNotification(String title, String text) {
         try {
-            Notification notification = new Notification.Builder(this, "NETCUT_CHANNEL")
-                    .setContentTitle(title)
-                    .setContentText(text)
-                    .setSmallIcon(android.R.drawable.ic_menu_manage)
-                    .setOngoing(true)
-                    .build();
+            Notification notification = null;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                notification = new Notification.Builder(this, "NETCUT_CHANNEL")
+                        .setContentTitle(title)
+                        .setContentText(text)
+                        .setSmallIcon(android.R.drawable.ic_menu_manage)
+                        .setOngoing(true)
+                        .build();
+            }
 
             startForeground(1, notification);
         } catch (Exception e) {
