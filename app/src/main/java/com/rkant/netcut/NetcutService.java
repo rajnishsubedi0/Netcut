@@ -25,6 +25,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class NetcutService extends Service {
+    private volatile boolean userRequestedRunning = false;
+    private volatile boolean waitingForWifi = false;
+    private volatile boolean pendingStartAttempt = false;
     private static final String TAG = "NetcutService";
     private final IBinder binder = new LocalBinder();
     private RustBridge bridge;
@@ -64,13 +67,13 @@ public class NetcutService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Notification notification = new Notification.Builder(this, "NETCUT_CHANNEL")
-                .setContentTitle("Netcut Active")
-                .setContentText("Monitoring network and enforcing bans")
-                .setSmallIcon(android.R.drawable.ic_menu_manage)
-                .setOngoing(true)
-                .build();
-        startForeground(1, notification);
+        if (userRequestedRunning || isEngineRunning()) {
+            showForegroundNotification(
+                    waitingForWifi ? "Netcut Waiting" : "Netcut Active",
+                    waitingForWifi ? "Waiting for WiFi..." : "Monitoring network and enforcing bans"
+            );
+        }
+
         return START_NOT_STICKY;
     }
 
@@ -78,16 +81,36 @@ public class NetcutService extends Service {
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        Log.d(TAG, "App removed from recents. Initiating graceful binary shutdown and ARP restore...");
-        killBinaryGracefully();
+        if (!userRequestedRunning) {
+            Log.d(TAG, "App removed and service was not manually enabled. Stopping...");
+            killBinaryGracefully();
+        } else {
+            Log.d(TAG, "App removed, but service was manually enabled. Keeping alive for WiFi events.");
+        }
+
         super.onTaskRemoved(rootIntent);
+    }
+    private void unregisterNetworkCallback() {
+        if (networkCallback != null) {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+
+            if (cm != null) {
+                try {
+                    cm.unregisterNetworkCallback(networkCallback);
+                    Log.d(TAG, "WiFi NetworkCallback unregistered");
+                } catch (Exception ignored) {
+                }
+            }
+
+            networkCallback = null;
+        }
     }
 
     @Override
     public void onDestroy() {
         Log.d(TAG, "Service destroyed. Ensuring binary is killed...");
         unregisterNetworkCallback();
-        killBinaryGracefully();
+        stopBridgeOnly();
         super.onDestroy();
     }
 
@@ -98,7 +121,13 @@ public class NetcutService extends Service {
     public boolean startEngine(String iface, String gateway) {
         if (bridge != null && bridge.isRunning()) return true;
 
-        // ✅ STEP 1: Prepare the binary (extract, permissions, validate)
+        if (bridge != null) {
+            try {
+                bridge.stop();
+            } catch (Exception ignored) {}
+            bridge = null;
+        }
+
         if (binaryPath == null || binaryPath.isEmpty()) {
             binaryPath = binaryManager.prepareBinary();
         }
@@ -111,23 +140,38 @@ public class NetcutService extends Service {
 
         Log.i(TAG, "Using binary at: " + binaryPath);
 
-        // ✅ STEP 2: Clear memory to prevent stale caching
-        knownDevices.clear();
-        synchronized (currentScan) { currentScan.clear(); }
-        notifyDataChanged();
+        // ✅ Do NOT clear knownDevices here.
+        // This prevents losing the current list when WiFi disconnects/reconnects.
+        // The periodic scan will refresh online/offline state.
 
-        // ✅ STEP 3: Start the bridge with the prepared binary path
+        showForegroundNotification(
+                "Netcut Starting",
+                "Starting engine..."
+        );
+
         bridge = new RustBridge();
+
         bridge.start(binaryPath, iface, gateway, new RustBridge.BridgeEventListener() {
             @Override
             public void onEvent(String event, JSONObject data) {
                 Log.i(TAG, "Event: " + event);
+
                 if ("SERVICE_STARTED".equals(event)) {
+                    waitingForWifi = false;
+
                     startPeriodicScan();
+                    syncBannedDevices();
+
+                    showForegroundNotification(
+                            "Netcut Active",
+                            "Monitoring network and enforcing bans"
+                    );
+
                     notifyToast("Service Started");
                 } else if ("ERROR".equals(event)) {
                     notifyToast("Error: " + data.optString("message"));
                 }
+
                 notifyDataChanged();
             }
         });
@@ -135,24 +179,72 @@ public class NetcutService extends Service {
         return bridge.isRunning();
     }
 
-    public void stopEngine() { killBinaryGracefully(); }
+    public void stopEngine() {
+        manualStop();
+    }
     public boolean isEngineRunning() { return bridge != null && bridge.isRunning(); }
     public void pingBinary() { if (bridge != null) bridge.pingBinary(); }
 
     public void banDevice(String mac, String ip) {
+        if (mac == null) return;
+
+        mac = mac.trim();
+
         dbHelper.setBanned(mac, ip, true);
+
+        updateDeviceBanStateInMemory(mac, ip, true);
+
         syncBannedDevices();
         notifyDataChanged();
     }
 
     public void unbanDevice(String mac) {
-        dbHelper.setBanned(mac, "", false);
+        if (mac == null) return;
+
+        mac = mac.trim();
+
+        dbHelper.setBanned(mac, null, false);
+
+        updateDeviceBanStateInMemory(mac, null, false);
+
         syncBannedDevices();
         notifyDataChanged();
     }
 
     public void updateDeviceName(String mac, String ip, String name) {
+        if (mac == null) return;
+
+        mac = mac.trim();
+
         dbHelper.setName(mac, ip, name);
+
+        String safeName = name == null ? "" : name.trim();
+
+        // Update knownDevices cache
+        Device known = knownDevices.get(mac);
+        if (known != null) {
+            known.setName(safeName);
+
+            if (ip != null && !ip.trim().isEmpty()) {
+                known.setIp(ip.trim());
+            }
+        }
+
+        // Update current visible scan list
+        synchronized (currentScan) {
+            for (Device d : currentScan) {
+                if (mac.equals(d.getMac())) {
+                    d.setName(safeName);
+
+                    if (ip != null && !ip.trim().isEmpty()) {
+                        d.setIp(ip.trim());
+                    }
+
+                    break;
+                }
+            }
+        }
+
         notifyDataChanged();
     }
 
@@ -253,6 +345,8 @@ public class NetcutService extends Service {
         }
     }
 
+
+
     private void registerNetworkCallback() {
         ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         if (cm == null) return;
@@ -265,30 +359,21 @@ public class NetcutService extends Service {
             @Override
             public void onAvailable(Network network) {
                 Log.d(TAG, "WiFi available detected in background service");
-                mainHandler.postDelayed(() -> {
-                    if (bridge == null || !bridge.isRunning()) {
-                        String gateway = NetworkScanner.getGatewayIp(NetcutService.this);
-                        String iface = NetworkScanner.getInterfaceName();
-                        if (gateway != null) {
-                            Log.d(TAG, "WiFi reconnected. Auto-restarting engine...");
-                            notifyToast("WiFi connected. Restarting service...");
-                            startEngine(iface, gateway);
-                            mainHandler.postDelayed(() -> forceScan(), 1500);
-                        }
-                    }
-                }, 1500);
+
+                // ✅ Only auto-start if user has manually pressed Start Service.
+                if (!userRequestedRunning) return;
+
+                mainHandler.postDelayed(() -> requestStartWhenReady(), 1000);
             }
 
             @Override
             public void onLost(Network network) {
                 Log.d(TAG, "WiFi lost detected in background service");
-                mainHandler.post(() -> {
-                    if (bridge != null && bridge.isRunning()) {
-                        Log.d(TAG, "WiFi disconnected. Stopping engine...");
-                        notifyToast("WiFi disconnected. Stopping service...");
-                        stopEngine();
-                    }
-                });
+
+                // ✅ Only pause/wait if user manually enabled the service.
+                if (!userRequestedRunning) return;
+
+                mainHandler.post(() -> pauseEngineForWifiLoss());
             }
         };
 
@@ -299,38 +384,227 @@ public class NetcutService extends Service {
             Log.e(TAG, "Failed to register network callback", e);
         }
     }
-
-    private void unregisterNetworkCallback() {
-        if (networkCallback != null) {
-            ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-            if (cm != null) {
-                try {
-                    cm.unregisterNetworkCallback(networkCallback);
-                    Log.d(TAG, "WiFi NetworkCallback unregistered");
-                } catch (Exception ignored) {}
+    private void stopBridgeOnly() {
+        if (bridge != null) {
+            try {
+                bridge.stop();
+            } catch (Exception e) {
+                Log.e(TAG, "Bridge stop failed", e);
             }
-            networkCallback = null;
-        }
-    }
 
-    private void killBinaryGracefully() {
-        if (bridge != null && bridge.isRunning()) {
-            bridge.stop();
-        }
-
-        try {
-            Runtime.getRuntime().exec(new String[]{"su", "-c",
-                    "setsid sh -c 'pidof netcut_arm64 2>/dev/null || pidof netcut_armeabi 2>/dev/null || pidof netcut 2>/dev/null | xargs -r kill -15; sleep 3; pidof netcut_arm64 2>/dev/null || pidof netcut_armeabi 2>/dev/null || pidof netcut 2>/dev/null | xargs -r kill -9' >/dev/null 2>&1 &"});
-            Log.d(TAG, "Detached kill process spawned. App can now die safely.");
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to execute detached kill", e);
+            bridge = null;
         }
 
         if (scheduler != null && !scheduler.isShutdown()) {
             scheduler.shutdownNow();
         }
 
-        stopForeground(true);
+        spawnDetachedKill();
+    }
+
+    private void killBinaryGracefully() {
+        stopBridgeOnly();
+
+        try {
+            stopForeground(true);
+        } catch (Exception ignored) {}
+
         stopSelf();
+    }
+
+    private void spawnDetachedKill() {
+        try {
+            Runtime.getRuntime().exec(new String[]{"su", "-c",
+                    "setsid sh -c 'pidof netcut_arm64 2>/dev/null || pidof netcut_armeabi 2>/dev/null || pidof netcut 2>/dev/null | xargs -r kill -15; sleep 3; pidof netcut_arm64 2>/dev/null || pidof netcut_armeabi 2>/dev/null || pidof netcut 2>/dev/null | xargs -r kill -9' >/dev/null 2>&1 &"});
+
+            Log.d(TAG, "Detached kill process spawned.");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to execute detached kill", e);
+        }
+    }
+    private void showForegroundNotification(String title, String text) {
+        try {
+            Notification notification = new Notification.Builder(this, "NETCUT_CHANNEL")
+                    .setContentTitle(title)
+                    .setContentText(text)
+                    .setSmallIcon(android.R.drawable.ic_menu_manage)
+                    .setOngoing(true)
+                    .build();
+
+            startForeground(1, notification);
+        } catch (Exception e) {
+            Log.e(TAG, "Notification update failed", e);
+        }
+    }
+    private void updateDeviceBanStateInMemory(String mac, String ip, boolean banned) {
+        if (mac == null) return;
+
+        mac = mac.trim();
+
+        Device known = knownDevices.get(mac);
+        if (known != null) {
+            known.setBanned(banned);
+
+            if (ip != null && !ip.trim().isEmpty()) {
+                known.setIp(ip.trim());
+            }
+        }
+
+        synchronized (currentScan) {
+            for (Device d : currentScan) {
+                if (mac.equals(d.getMac())) {
+                    d.setBanned(banned);
+
+                    if (ip != null && !ip.trim().isEmpty()) {
+                        d.setIp(ip.trim());
+                    }
+
+                    break;
+                }
+            }
+        }
+    }
+    private void restoreKnownDevicesFromDb() {
+        knownDevices.clear();
+
+        synchronized (currentScan) {
+            currentScan.clear();
+        }
+
+        List<Device> savedDevices = dbHelper.getSavedDevices();
+
+        for (Device d : savedDevices) {
+            d.setOnline(false);
+            knownDevices.put(d.getMac(), d);
+        }
+
+        List<Device> sorted = new ArrayList<>(knownDevices.values());
+
+        sorted.sort((d1, d2) -> {
+            if (d1.isOnline() == d2.isOnline()) {
+                String ip1 = d1.getIp() == null ? "" : d1.getIp();
+                String ip2 = d2.getIp() == null ? "" : d2.getIp();
+                return ip1.compareTo(ip2);
+            }
+
+            return d1.isOnline() ? -1 : 1;
+        });
+
+        synchronized (currentScan) {
+            currentScan.addAll(sorted);
+        }
+    }
+    public boolean isManualModeActive() {
+        return userRequestedRunning;
+    }
+
+    public boolean isWaitingForWifi() {
+        return waitingForWifi;
+    }
+    public void manualStart() {
+        userRequestedRunning = true;
+        waitingForWifi = false;
+        pendingStartAttempt = false;
+
+        requestStartWhenReady();
+        notifyDataChanged();
+    }
+
+    public void manualStop() {
+        userRequestedRunning = false;
+        waitingForWifi = false;
+        pendingStartAttempt = false;
+
+        mainHandler.removeCallbacksAndMessages(null);
+
+        killBinaryGracefully();
+
+        notifyDataChanged();
+    }
+    private void requestStartWhenReady() {
+        if (!userRequestedRunning || pendingStartAttempt) return;
+
+        pendingStartAttempt = true;
+        mainHandler.post(() -> attemptStartEngine(30));
+    }
+
+    private void attemptStartEngine(int retriesLeft) {
+        if (!userRequestedRunning) {
+            pendingStartAttempt = false;
+            return;
+        }
+
+        if (isEngineRunning()) {
+            waitingForWifi = false;
+            pendingStartAttempt = false;
+            return;
+        }
+
+        String iface = NetworkScanner.getInterfaceName();
+        String gateway = NetworkScanner.getGatewayIp(this);
+
+        if (isGatewayValid(gateway)) {
+            waitingForWifi = false;
+
+            showForegroundNotification(
+                    "Netcut Active",
+                    "Monitoring network and enforcing bans"
+            );
+
+            boolean started = startEngine(iface, gateway);
+
+            if (started) {
+                pendingStartAttempt = false;
+                mainHandler.postDelayed(() -> forceScan(), 1000);
+                notifyDataChanged();
+                return;
+            }
+
+            notifyToast("Failed to start engine. Retrying...");
+        }
+
+        if (retriesLeft > 0 && userRequestedRunning) {
+            waitingForWifi = true;
+
+            showForegroundNotification(
+                    "Netcut Waiting",
+                    "Waiting for WiFi..."
+            );
+
+            mainHandler.postDelayed(() -> attemptStartEngine(retriesLeft - 1), 2000);
+        } else {
+            pendingStartAttempt = false;
+            waitingForWifi = true;
+
+            showForegroundNotification(
+                    "Netcut Waiting",
+                    "Waiting for WiFi..."
+            );
+
+            notifyToast("Waiting for WiFi...");
+            notifyDataChanged();
+        }
+    }
+
+    private boolean isGatewayValid(String gateway) {
+        return gateway != null
+                && !gateway.trim().isEmpty()
+                && !gateway.equals("0.0.0.0");
+    }
+    private void pauseEngineForWifiLoss() {
+        if (!userRequestedRunning) return;
+
+        stopBridgeOnly();
+
+        waitingForWifi = true;
+
+        showForegroundNotification(
+                "Netcut Waiting",
+                "WiFi disconnected. Waiting for WiFi..."
+        );
+
+        notifyToast("WiFi disconnected. Waiting for WiFi...");
+
+        notifyDataChanged();
     }
 }

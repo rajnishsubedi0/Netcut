@@ -36,44 +36,221 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
         db.execSQL("DROP TABLE IF EXISTS " + TABLE);
         onCreate(db);
     }
+    public List<Device> getSavedDevices() {
+        List<Device> list = new ArrayList<>();
 
+        SQLiteDatabase db = getReadableDatabase();
+
+        String selection = COL_BANNED + " = 1 OR (" +
+                COL_NAME + " IS NOT NULL AND " + COL_NAME + " != '')";
+
+        Cursor c = null;
+
+        try {
+            c = db.query(
+                    TABLE,
+                    null,
+                    selection,
+                    null,
+                    null,
+                    null,
+                    COL_BANNED + " DESC, " + COL_IP + " ASC"
+            );
+
+            while (c.moveToNext()) {
+                list.add(cursorToDevice(c));
+            }
+        } finally {
+            if (c != null) {
+                c.close();
+            }
+        }
+
+        return list;
+    }
     // Fetch a specific device (only exists if banned or named)
     public Device getDevice(String mac) {
+        if (isEmpty(mac)) return null;
+
+        mac = mac.trim();
+
         SQLiteDatabase db = getReadableDatabase();
-        Cursor c = db.query(TABLE, null, COL_MAC + "=?", new String[]{mac}, null, null, null);
-        Device d = null;
-        if (c.moveToFirst()) {
-            d = cursorToDevice(c);
+        Cursor c = null;
+
+        try {
+            c = db.query(
+                    TABLE,
+                    null,
+                    COL_MAC + "=?",
+                    new String[]{mac},
+                    null,
+                    null,
+                    null
+            );
+
+            if (c.moveToFirst()) {
+                return cursorToDevice(c);
+            }
+
+            return null;
+        } finally {
+            if (c != null) {
+                c.close();
+            }
         }
-        c.close();
-        return d;
     }
 
     // Update IP for an existing DB device
     public void updateIp(String mac, String ip) {
+        if (isEmpty(mac) || isEmpty(ip)) return;
+
         SQLiteDatabase db = getWritableDatabase();
+
         ContentValues values = new ContentValues();
-        values.put(COL_IP, ip);
-        db.update(TABLE, values, COL_MAC + "=?", new String[]{mac});
+        values.put(COL_IP, ip.trim());
+
+        db.update(
+                TABLE,
+                values,
+                COL_MAC + "=?",
+                new String[]{mac.trim()}
+        );
     }
 
     // Ban/Unban (Ensures device is saved to DB)
     public void setBanned(String mac, String ip, boolean isBanned) {
+        if (isEmpty(mac)) return;
+
+        mac = mac.trim();
+
         SQLiteDatabase db = getWritableDatabase();
+
+        // If unbanning a device that was never saved, do not create a useless row.
+        if (!isBanned && !deviceExists(db, mac)) {
+            return;
+        }
+
         ContentValues values = new ContentValues();
-        values.put(COL_MAC, mac);
-        values.put(COL_IP, ip);
         values.put(COL_BANNED, isBanned ? 1 : 0);
+
+        if (!isEmpty(ip)) {
+            values.put(COL_IP, ip.trim());
+        }
+
+        Cursor c = null;
+
+        try {
+            c = db.query(
+                    TABLE,
+                    new String[]{COL_NAME},
+                    COL_MAC + "=?",
+                    new String[]{mac},
+                    null,
+                    null,
+                    null
+            );
+
+            if (c.moveToFirst()) {
+                // Preserve existing name
+                String existingName = c.getString(c.getColumnIndexOrThrow(COL_NAME));
+
+                if (existingName == null) {
+                    values.putNull(COL_NAME);
+                } else {
+                    values.put(COL_NAME, existingName);
+                }
+
+                int updated = db.update(
+                        TABLE,
+                        values,
+                        COL_MAC + "=?",
+                        new String[]{mac}
+                );
+
+                if (updated > 0) {
+                    return;
+                }
+            }
+        } finally {
+            if (c != null) {
+                c.close();
+            }
+        }
+
+        // Insert new device only if it does not exist
+        values.put(COL_MAC, mac);
+
+        if (!values.containsKey(COL_IP)) {
+            values.put(COL_IP, "");
+        }
+
+        if (!values.containsKey(COL_NAME)) {
+            values.putNull(COL_NAME);
+        }
+
         db.insertWithOnConflict(TABLE, null, values, SQLiteDatabase.CONFLICT_REPLACE);
     }
 
     // Name device (Ensures device is saved to DB)
     public void setName(String mac, String ip, String name) {
+        if (isEmpty(mac)) return;
+
+        mac = mac.trim();
+
+        String safeName = name == null ? "" : name.trim();
+
         SQLiteDatabase db = getWritableDatabase();
+
         ContentValues values = new ContentValues();
+        values.put(COL_NAME, safeName);
+
+        if (!isEmpty(ip)) {
+            values.put(COL_IP, ip.trim());
+        }
+
+        Cursor c = null;
+
+        try {
+            c = db.query(
+                    TABLE,
+                    new String[]{COL_BANNED},
+                    COL_MAC + "=?",
+                    new String[]{mac},
+                    null,
+                    null,
+                    null
+            );
+
+            if (c.moveToFirst()) {
+                // Preserve existing banned state
+                int existingBanned = c.getInt(c.getColumnIndexOrThrow(COL_BANNED));
+                values.put(COL_BANNED, existingBanned);
+
+                int updated = db.update(
+                        TABLE,
+                        values,
+                        COL_MAC + "=?",
+                        new String[]{mac}
+                );
+
+                if (updated > 0) {
+                    return;
+                }
+            }
+        } finally {
+            if (c != null) {
+                c.close();
+            }
+        }
+
+        // Insert new row if device does not exist yet
         values.put(COL_MAC, mac);
-        values.put(COL_IP, ip);
-        values.put(COL_NAME, name);
+        values.put(COL_BANNED, 0);
+
+        if (!values.containsKey(COL_IP)) {
+            values.put(COL_IP, "");
+        }
+
         db.insertWithOnConflict(TABLE, null, values, SQLiteDatabase.CONFLICT_REPLACE);
     }
 
@@ -97,5 +274,28 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
                 c.getInt(c.getColumnIndexOrThrow(COL_BANNED)) == 1,
                 true // If it's in the DB, we consider it known
         );
+    }
+    private boolean isEmpty(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private boolean deviceExists(SQLiteDatabase db, String mac) {
+        Cursor c = null;
+        try {
+            c = db.query(
+                    TABLE,
+                    new String[]{COL_MAC},
+                    COL_MAC + "=?",
+                    new String[]{mac},
+                    null,
+                    null,
+                    null
+            );
+            return c.moveToFirst();
+        } finally {
+            if (c != null) {
+                c.close();
+            }
+        }
     }
 }

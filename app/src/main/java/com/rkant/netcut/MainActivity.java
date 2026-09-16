@@ -66,16 +66,9 @@ import java.util.List;public class MainActivity extends AppCompatActivity
             service.setCallback(MainActivity.this);
             bound = true;
 
-            // Auto-start service and scan on app launch if rooted
-            if (RootManager.isRooted() && !service.isEngineRunning()) {
-                String gateway = NetworkScanner.getGatewayIp(MainActivity.this);
-                String iface = NetworkScanner.getInterfaceName();
-                if (gateway != null) {
-                    service.startEngine(iface, gateway);
-                    btnStart.setText("Stop Service");
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> service.forceScan(), 1000);
-                }
-            }
+            // ✅ No auto-start on fresh app boot.
+            // Service starts only when the user presses Start Service.
+
             refreshUI();
         }
 
@@ -116,12 +109,14 @@ import java.util.List;public class MainActivity extends AppCompatActivity
             if (bound && service != null && service.isEngineRunning()) {
                 Toast.makeText(this, "Scanning network...", Toast.LENGTH_SHORT).show();
                 service.forceScan();
+            } else if (bound && service != null && service.isManualModeActive()) {
+                Toast.makeText(this, "Waiting for WiFi...", Toast.LENGTH_SHORT).show();
+                swipeRefresh.setRefreshing(false);
             } else {
                 Toast.makeText(this, "Service is not running. Start it first.", Toast.LENGTH_SHORT).show();
                 swipeRefresh.setRefreshing(false);
             }
         });
-
         rvConnected.setLayoutManager(new LinearLayoutManager(this));
         rvBanned.setLayoutManager(new LinearLayoutManager(this));
 
@@ -143,8 +138,8 @@ import java.util.List;public class MainActivity extends AppCompatActivity
     @Override
     protected void onStart() {
         super.onStart();
+
         Intent intent = new Intent(this, NetcutService.class);
-        startService(intent);
         bindService(intent, connection, Context.BIND_AUTO_CREATE);
     }
 
@@ -332,21 +327,17 @@ import java.util.List;public class MainActivity extends AppCompatActivity
     // ========================================================================
 
     private void toggleService() {
-        if (bound && service.isEngineRunning()) {
-            service.stopEngine();
+        if (!bound) return;
+
+        if (service.isManualModeActive()) {
+            service.manualStop();
             btnStart.setText("Start Service");
         } else {
-            String gateway = NetworkScanner.getGatewayIp(this);
-            String iface = NetworkScanner.getInterfaceName();
-            if (gateway == null) {
-                Toast.makeText(this, "Not connected to WiFi", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            if (bound) {
-                service.startEngine(iface, gateway);
-                btnStart.setText("Stop Service");
-                Toast.makeText(this, "Gateway: " + gateway, Toast.LENGTH_SHORT).show();
-            }
+            // Ensure the service is actually started before requesting foreground work.
+            startService(new Intent(this, NetcutService.class));
+
+            service.manualStart();
+            btnStart.setText("Stop Service");
         }
     }
 
@@ -394,6 +385,7 @@ import java.util.List;public class MainActivity extends AppCompatActivity
 
     private void refreshUI() {
         if (!bound) return;
+
         List<Device> connected = service.getConnectedDevices();
         List<Device> banned = service.getBannedDevices();
 
@@ -402,8 +394,18 @@ import java.util.List;public class MainActivity extends AppCompatActivity
 
         long onlineCount = connected.stream().filter(Device::isOnline).count();
         long bannedCount = banned.size();
+
         tvStats.setText(String.format("Online: %d | Banned: %d", onlineCount, bannedCount));
-        btnStart.setText(service.isEngineRunning() ? "Stop Service" : "Start Service");
+
+        if (service.isManualModeActive()) {
+            if (!service.isEngineRunning() && service.isWaitingForWifi()) {
+                btnStart.setText("Waiting...");
+            } else {
+                btnStart.setText("Stop Service");
+            }
+        } else {
+            btnStart.setText("Start Service");
+        }
     }
 
     // DeviceAdapter Callbacks
