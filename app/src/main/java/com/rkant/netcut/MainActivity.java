@@ -1,5 +1,8 @@
 package com.rkant.netcut;
 
+import static com.google.android.material.internal.EdgeToEdgeUtils.setStatusBarColor;
+
+import android.graphics.Color;
 import android.os.Build;
 import android.Manifest;
 import android.content.ComponentName;
@@ -16,6 +19,9 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.util.Log;
+import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
@@ -30,6 +36,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -48,8 +55,16 @@ public class MainActivity extends AppCompatActivity
     private static final int NOTIFICATION_PERMISSION_CODE = 101;
     private static final String PREFS_NAME = "netcut_prefs";
     private static final String KEY_OEM_HINT_SHOWN = "oem_hint_shown";
-    private static boolean batteryWarningShownThisSession = false;
 
+    // Battery optimization handling
+    private static final String KEY_BATTERY_OPT_DONT_ASK = "battery_opt_dont_ask";
+    private static final String KEY_BATTERY_PROMPT_LAST_TIME = "battery_prompt_last_time";
+
+    // Ask at most once per 24 hours if not whitelisted
+    private static final long BATTERY_PROMPT_COOLDOWN_MS = 24 * 60 * 60 * 1000L;
+
+    // Prevent multiple dialogs in the current process
+    private static boolean batteryWarningShownThisSession = false;
     private NetcutService service;
     private boolean bound = false;
     private DeviceAdapter connectedAdapter;
@@ -84,10 +99,12 @@ public class MainActivity extends AppCompatActivity
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+       
         checkRootAccessAsync();
         checkNotificationPermission(); // ✅ FIX 3: Request notification permission
         checkArchitectureSupport();
         showOemBatteryHint();
+        colorOfStatusBar();
 
         rvConnected = findViewById(R.id.rv_connected);
         rvBanned = findViewById(R.id.rv_banned);
@@ -123,11 +140,17 @@ public class MainActivity extends AppCompatActivity
 
         btnStart.setOnClickListener(v -> toggleService());
         btnBanAll.setOnClickListener(v -> confirmBanAll());
-        btnRestoreAll.setOnClickListener(v -> restoreAll());
+        btnRestoreAll.setOnClickListener(v -> confirmRestoreAll());
         btnTabConnected.setOnClickListener(v -> showTab(true));
         btnTabBanned.setOnClickListener(v -> showTab(false));
         showTab(true);
     }
+
+    private void colorOfStatusBar() {
+        
+
+    }
+
 
     @Override
     protected void onStart() {
@@ -139,7 +162,13 @@ public class MainActivity extends AppCompatActivity
     @Override
     protected void onResume() {
         super.onResume();
-        checkBatteryOptimization();
+
+        // Small delay helps avoid false re-trigger after returning from settings.
+        mainHandler.postDelayed(() -> {
+            if (!isFinishing()) {
+                checkBatteryOptimization();
+            }
+        }, 400);
     }
 
     @Override
@@ -209,32 +238,67 @@ public class MainActivity extends AppCompatActivity
     // BATTERY OPTIMIZATION
     // ========================================================================
 
+    // ========================================================================
+// BATTERY OPTIMIZATION - FIXED
+// ========================================================================
     private void checkBatteryOptimization() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            if (pm == null) return;
-            if (!pm.isIgnoringBatteryOptimizations(getPackageName())) {
-                if (!batteryWarningShownThisSession) {
-                    showBatteryOptimizationDialog();
-                } else {
-                    Toast.makeText(this, "⚠ Battery optimization is still ON.", Toast.LENGTH_LONG).show();
-                }
-            }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+        if (isFinishing()) return;
+
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (pm == null) return;
+
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+
+        // If user explicitly chose "Don't ask again", never ask again.
+        if (prefs.getBoolean(KEY_BATTERY_OPT_DONT_ASK, false)) {
+            return;
         }
+
+        // If Android says app is whitelisted, never ask again.
+        if (pm.isIgnoringBatteryOptimizations(getPackageName())) {
+            return;
+        }
+
+        // Prevent showing multiple times in the same process session.
+        if (batteryWarningShownThisSession) {
+            return;
+        }
+
+        // Prevent immediate re-ask after returning from settings/system dialog.
+        long lastPromptTime = prefs.getLong(KEY_BATTERY_PROMPT_LAST_TIME, 0L);
+        long now = System.currentTimeMillis();
+
+        if (lastPromptTime != 0 && now - lastPromptTime < BATTERY_PROMPT_COOLDOWN_MS) {
+            return;
+        }
+
+        showBatteryOptimizationDialog();
     }
 
     private void showBatteryOptimizationDialog() {
+        if (isFinishing()) return;
+
+        batteryWarningShownThisSession = true;
+
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        prefs.edit()
+                .putLong(KEY_BATTERY_PROMPT_LAST_TIME, System.currentTimeMillis())
+                .apply();
+
         new AlertDialog.Builder(this)
                 .setTitle("🔋 Disable Battery Optimization")
                 .setMessage("This app must run continuously to keep devices banned.\n\n" +
                         "Tap 'Allow Now' to exclude this app from battery optimization.")
                 .setCancelable(false)
                 .setPositiveButton("Allow Now", (d, w) -> {
-                    batteryWarningShownThisSession = true;
                     requestIgnoreBatteryOptimizations();
                 })
                 .setNegativeButton("Not Now", (d, w) -> {
-                    batteryWarningShownThisSession = true;
+                    // Do nothing. Cooldown prevents immediate re-ask.
+                })
+                .setNeutralButton("Don't ask again", (d, w) -> {
+                    prefs.edit().putBoolean(KEY_BATTERY_OPT_DONT_ASK, true).apply();
                 })
                 .show();
     }
@@ -308,41 +372,61 @@ public class MainActivity extends AppCompatActivity
             btnStart.setText("Stop Service");
         }
     }
+    // ========================================================================
+// RESTORE ALL - FIXED WITH CONFIRMATION
+// ========================================================================
+    private void confirmRestoreAll() {
+        if (!bound || service == null) return;
 
-    private void confirmBanAll() {
-        if (!bound) return;
         new AlertDialog.Builder(this)
-                .setTitle("Ban All Devices?")
-                .setMessage("This will disconnect ALL online devices from the network.\n\nAre you sure?")
-                .setPositiveButton("Ban All", (d, w) -> banAll())
-                .setNegativeButton("Cancel", null)
-                .show();
-    }
-
-    private void banAll() {
-        if (!bound) return;
-
-        // ✅ Add confirmation dialog to prevent accidental network drops
-        new AlertDialog.Builder(this)
-                .setTitle("Ban All Devices?")
-                .setMessage("This will disconnect ALL online devices from the network.\n\nAre you sure?")
-                .setPositiveButton("Ban All", (d, w) -> {
-                    List<Device> toBan = new ArrayList<>();
-                    for (Device dd : service.getConnectedDevices()) {
-                        if (dd.isOnline()) toBan.add(dd);
-                    }
-                    if (!toBan.isEmpty()) {
-                        service.banDevices(toBan); // ✅ Uses batch method
-                    }
-                })
+                .setTitle("Restore All Devices?")
+                .setMessage("This will unban all banned devices and restore network access.\n\nAre you sure?")
+                .setPositiveButton("Restore All", (d, w) -> restoreAll())
                 .setNegativeButton("Cancel", null)
                 .show();
     }
 
     private void restoreAll() {
-        if (!bound) return;
-        service.unbanAllDevices(); // ✅ Uses batch method (clears DB and sends 1 sync command)
+        if (!bound || service == null) return;
+
+        service.unbanAllDevices();
+        Toast.makeText(this, "Restoring all devices...", Toast.LENGTH_SHORT).show();
     }
+
+    // ========================================================================
+// BAN ALL - FIXED, SINGLE CONFIRMATION ONLY
+// ========================================================================
+    private void confirmBanAll() {
+        if (!bound || service == null) return;
+
+        new AlertDialog.Builder(this)
+                .setTitle("Ban All Devices?")
+                .setMessage("This will disconnect ALL online devices from the network.\n\nAre you sure?")
+                .setPositiveButton("Ban All", (d, w) -> performBanAll())
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void performBanAll() {
+        if (!bound || service == null) return;
+
+        List<Device> toBan = new ArrayList<>();
+
+        for (Device device : service.getConnectedDevices()) {
+            if (device.isOnline()) {
+                toBan.add(device);
+            }
+        }
+
+        if (toBan.isEmpty()) {
+            Toast.makeText(this, "No online devices to ban", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        service.banDevices(toBan);
+        Toast.makeText(this, "Banning all online devices...", Toast.LENGTH_SHORT).show();
+    }
+
 
     private void showTab(boolean connected) {
         rvConnected.setVisibility(connected ? RecyclerView.VISIBLE : RecyclerView.GONE);
