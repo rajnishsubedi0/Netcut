@@ -41,7 +41,7 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
     @Override
     public void onConfigure(SQLiteDatabase db) {
         super.onConfigure(db);
-        db.enableWriteAheadLogging(); // Better concurrency
+        db.enableWriteAheadLogging();
     }
 
     public synchronized List<Device> getSavedDevices() {
@@ -51,12 +51,8 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
                 COL_NAME + " IS NOT NULL AND " + COL_NAME + " != '')";
         try (Cursor c = db.query(TABLE, null, selection, null, null, null,
                 COL_BANNED + " DESC, " + COL_IP + " ASC")) {
-            while (c.moveToNext()) {
-                list.add(cursorToDevice(c));
-            }
-        } catch (Exception e) {
-            // Log error
-        }
+            while (c.moveToNext()) { list.add(cursorToDevice(c)); }
+        } catch (Exception ignored) {}
         return list;
     }
 
@@ -66,12 +62,8 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = getReadableDatabase();
         try (Cursor c = db.query(TABLE, null, COL_MAC + "=?",
                 new String[]{mac}, null, null, null)) {
-            if (c.moveToFirst()) {
-                return cursorToDevice(c);
-            }
-        } catch (Exception e) {
-            // Log error
-        }
+            if (c.moveToFirst()) return cursorToDevice(c);
+        } catch (Exception ignored) {}
         return null;
     }
 
@@ -93,26 +85,19 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
 
         ContentValues values = new ContentValues();
         values.put(COL_BANNED, isBanned ? 1 : 0);
-        if (ip != null && !ip.trim().isEmpty()) {
-            values.put(COL_IP, ip.trim());
-        }
+        if (ip != null && !ip.trim().isEmpty()) values.put(COL_IP, ip.trim());
 
-        // Check if device exists and preserve name
         try (Cursor c = db.query(TABLE, new String[]{COL_NAME},
                 COL_MAC + "=?", new String[]{mac}, null, null, null)) {
             if (c.moveToFirst()) {
                 String existingName = c.getString(c.getColumnIndexOrThrow(COL_NAME));
-                if (existingName == null) {
-                    values.putNull(COL_NAME);
-                } else {
-                    values.put(COL_NAME, existingName);
-                }
+                if (existingName == null) values.putNull(COL_NAME);
+                else values.put(COL_NAME, existingName);
                 int updated = db.update(TABLE, values, COL_MAC + "=?", new String[]{mac});
                 if (updated > 0) return;
             }
-        }
+        } catch (Exception ignored) {}
 
-        // Insert new device
         values.put(COL_MAC, mac);
         if (!values.containsKey(COL_IP)) values.put(COL_IP, "");
         if (!values.containsKey(COL_NAME)) values.putNull(COL_NAME);
@@ -127,9 +112,7 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
 
         ContentValues values = new ContentValues();
         values.put(COL_NAME, safeName);
-        if (ip != null && !ip.trim().isEmpty()) {
-            values.put(COL_IP, ip.trim());
-        }
+        if (ip != null && !ip.trim().isEmpty()) values.put(COL_IP, ip.trim());
 
         try (Cursor c = db.query(TABLE, new String[]{COL_BANNED},
                 COL_MAC + "=?", new String[]{mac}, null, null, null)) {
@@ -139,7 +122,7 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
                 int updated = db.update(TABLE, values, COL_MAC + "=?", new String[]{mac});
                 if (updated > 0) return;
             }
-        }
+        } catch (Exception ignored) {}
 
         values.put(COL_MAC, mac);
         values.put(COL_BANNED, 0);
@@ -154,18 +137,13 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
                 new String[]{"1"}, null, null, null)) {
             while (c.moveToNext()) {
                 Device d = cursorToDevice(c);
-                d.setOnline(false); // DB devices are not necessarily online
+                d.setOnline(false);
                 list.add(d);
             }
-        } catch (Exception e) {
-            // Log error
-        }
+        } catch (Exception ignored) {}
         return list;
     }
 
-    /**
-     * Batch unban all devices.
-     */
     public synchronized void unbanAll() {
         SQLiteDatabase db = getWritableDatabase();
         ContentValues values = new ContentValues();
@@ -180,7 +158,7 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
                 c.getString(c.getColumnIndexOrThrow(COL_IP)),
                 name,
                 c.getInt(c.getColumnIndexOrThrow(COL_BANNED)) == 1,
-                false // Default to offline; scan will update
+                false
         );
     }
 

@@ -45,7 +45,6 @@ public class MainActivity extends AppCompatActivity
         BannedDeviceAdapter.OnUnbanListener,
         NetcutService.ServiceCallback {
 
-
     private static final int NOTIFICATION_PERMISSION_CODE = 101;
     private static final String PREFS_NAME = "netcut_prefs";
     private static final String KEY_OEM_HINT_SHOWN = "oem_hint_shown";
@@ -60,7 +59,6 @@ public class MainActivity extends AppCompatActivity
     private Button btnStart, btnBanAll, btnRestoreAll, btnTabConnected, btnTabBanned;
     private SwipeRefreshLayout swipeRefresh;
 
-    // ✅ Background executor for root checks
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -74,11 +72,8 @@ public class MainActivity extends AppCompatActivity
         }
 
         @Override
-        public void onServiceDisconnected(ComponentName name) {
-            bound = false;
-        }
+        public void onServiceDisconnected(ComponentName name) { bound = false; }
     };
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -90,7 +85,7 @@ public class MainActivity extends AppCompatActivity
             return insets;
         });
         checkRootAccessAsync();
-        checkNotificationPermission();
+        checkNotificationPermission(); // ✅ FIX 3: Request notification permission
         checkArchitectureSupport();
         showOemBatteryHint();
 
@@ -164,29 +159,7 @@ public class MainActivity extends AppCompatActivity
     }
 
     // ========================================================================
-    // ✅ ROOT CHECK (ASYNC)
-    // ========================================================================
-
-    private void checkRootAccessAsync() {
-        ioExecutor.execute(() -> {
-            boolean rooted = RootManager.isRooted();
-            mainHandler.post(() -> {
-                if (!rooted && !isFinishing()) {
-                    new AlertDialog.Builder(this)
-                            .setTitle("⚠ Root Access Required")
-                            .setMessage("This app REQUIRES root to function.\n\n" +
-                                    "Please grant root (Magisk/SuperSU), then retry.")
-                            .setCancelable(false)
-                            .setPositiveButton("Retry Check", (d, w) -> checkRootAccessAsync())
-                            .setNegativeButton("Exit App", (d, w) -> finish())
-                            .show();
-                }
-            });
-        });
-    }
-
-    // ========================================================================
-    // ✅ NOTIFICATION PERMISSION
+    // ✅ FIX 3: NOTIFICATION PERMISSION
     // ========================================================================
 
     private void checkNotificationPermission() {
@@ -211,7 +184,29 @@ public class MainActivity extends AppCompatActivity
     }
 
     // ========================================================================
-    // ✅ BATTERY OPTIMIZATION
+    // ROOT CHECK (ASYNC)
+    // ========================================================================
+
+    private void checkRootAccessAsync() {
+        ioExecutor.execute(() -> {
+            boolean rooted = RootManager.isRooted();
+            mainHandler.post(() -> {
+                if (!rooted && !isFinishing()) {
+                    new AlertDialog.Builder(this)
+                            .setTitle("⚠ Root Access Required")
+                            .setMessage("This app REQUIRES root to function.\n\n" +
+                                    "Please grant root (Magisk/SuperSU), then retry.")
+                            .setCancelable(false)
+                            .setPositiveButton("Retry Check", (d, w) -> checkRootAccessAsync())
+                            .setNegativeButton("Exit App", (d, w) -> finish())
+                            .show();
+                }
+            });
+        });
+    }
+
+    // ========================================================================
+    // BATTERY OPTIMIZATION
     // ========================================================================
 
     private void checkBatteryOptimization() {
@@ -222,9 +217,7 @@ public class MainActivity extends AppCompatActivity
                 if (!batteryWarningShownThisSession) {
                     showBatteryOptimizationDialog();
                 } else {
-                    Toast.makeText(this,
-                            "⚠ Battery optimization is still ON.",
-                            Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "⚠ Battery optimization is still ON.", Toast.LENGTH_LONG).show();
                 }
             }
         }
@@ -259,7 +252,7 @@ public class MainActivity extends AppCompatActivity
     }
 
     // ========================================================================
-    // ✅ OEM HINTS
+    // OEM HINTS
     // ========================================================================
 
     private void showOemBatteryHint() {
@@ -294,11 +287,18 @@ public class MainActivity extends AppCompatActivity
     }
 
     // ========================================================================
-    // ✅ SERVICE CONTROL
+    // ✅ FIX 1: SERVICE CONTROL WITH RAPID TAP PROTECTION
     // ========================================================================
 
     private void toggleService() {
         if (!bound) return;
+
+        // ✅ Block rapid taps
+        if (service.isTransitioning()) {
+            Toast.makeText(this, "Please wait...", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         if (service.isManualModeActive()) {
             service.manualStop();
             btnStart.setText("Start Service");
@@ -309,15 +309,11 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    /**
-     * ✅ Confirmation dialog before banning all devices.
-     */
     private void confirmBanAll() {
         if (!bound) return;
         new AlertDialog.Builder(this)
                 .setTitle("Ban All Devices?")
-                .setMessage("This will disconnect ALL online devices from the network.\n\n" +
-                        "This may affect other users. Are you sure?")
+                .setMessage("This will disconnect ALL online devices from the network.\n\nAre you sure?")
                 .setPositiveButton("Ban All", (d, w) -> banAll())
                 .setNegativeButton("Cancel", null)
                 .show();
@@ -325,20 +321,27 @@ public class MainActivity extends AppCompatActivity
 
     private void banAll() {
         if (!bound) return;
-        List<Device> toBan = new ArrayList<>();
-        for (Device d : service.getConnectedDevices()) {
-            if (d.isOnline()) {
-                toBan.add(d);
-            }
-        }
-        if (!toBan.isEmpty()) {
-            service.banDevices(toBan);
-        }
+
+        // ✅ Add confirmation dialog to prevent accidental network drops
+        new AlertDialog.Builder(this)
+                .setTitle("Ban All Devices?")
+                .setMessage("This will disconnect ALL online devices from the network.\n\nAre you sure?")
+                .setPositiveButton("Ban All", (d, w) -> {
+                    List<Device> toBan = new ArrayList<>();
+                    for (Device dd : service.getConnectedDevices()) {
+                        if (dd.isOnline()) toBan.add(dd);
+                    }
+                    if (!toBan.isEmpty()) {
+                        service.banDevices(toBan); // ✅ Uses batch method
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void restoreAll() {
         if (!bound) return;
-        service.unbanAllDevices();
+        service.unbanAllDevices(); // ✅ Uses batch method (clears DB and sends 1 sync command)
     }
 
     private void showTab(boolean connected) {
@@ -367,9 +370,7 @@ public class MainActivity extends AppCompatActivity
         bannedAdapter.updateDevices(banned);
 
         int onlineCount = 0;
-        for (Device d : connected) {
-            if (d.isOnline()) onlineCount++;
-        }
+        for (Device d : connected) { if (d.isOnline()) onlineCount++; }
 
         tvStats.setText(String.format("Online: %d | Banned: %d", onlineCount, banned.size()));
 
@@ -385,7 +386,7 @@ public class MainActivity extends AppCompatActivity
     }
 
     // ========================================================================
-    // ✅ DEVICE ADAPTER CALLBACKS
+    // ADAPTER CALLBACKS
     // ========================================================================
 
     @Override
@@ -395,11 +396,8 @@ public class MainActivity extends AppCompatActivity
         if (connectedAdapter != null) connectedAdapter.notifyItemChanged(position);
 
         ioExecutor.execute(() -> {
-            if (newBannedState) {
-                service.banDevice(device.getMac(), device.getIp());
-            } else {
-                service.unbanDevice(device.getMac());
-            }
+            if (newBannedState) service.banDevice(device.getMac(), device.getIp());
+            else service.unbanDevice(device.getMac());
         });
     }
 
@@ -407,18 +405,22 @@ public class MainActivity extends AppCompatActivity
     public void onPingClick(Device device) {
         String ip = device.getIp();
         if (!Device.isValidIpv4(ip)) return;
-
         Toast.makeText(this, "Pinging " + ip + "...", Toast.LENGTH_SHORT).show();
+
         ioExecutor.execute(() -> {
-            String output = RootManager.execute("ping -c 1 -W 1 " + ip, 5000);
-            String msg = (output != null && output.contains("time="))
-                    ? ip + " is reachable — " +
-                      output.substring(output.indexOf("time=") + 5).trim().split(" ")[0] + " ms"
-                    : ip + " is unreachable";
+            // ✅ FIX: Removed -W 1 (fails on some Android toybox versions)
+            // Increased timeout slightly to 4000ms
+            String output = RootManager.execute("ping -c 1 " + ip, 4000);
+
+            // ✅ FIX: Check for multiple success indicators and ensure it didn't timeout
+            boolean reachable = output != null &&
+                    !output.contains("TIMEOUT") &&
+                    (output.contains("time=") || output.contains("bytes from") || output.contains("1 received"));
+
+            String msg = reachable ? ip + " is reachable ✔" : ip + " is unreachable ✖";
+
             mainHandler.post(() -> {
-                if (!isFinishing()) {
-                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
-                }
+                if (!isFinishing()) Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
             });
         });
     }
@@ -432,8 +434,7 @@ public class MainActivity extends AppCompatActivity
         builder.setView(input);
         builder.setPositiveButton("Save", (dialog, which) -> {
             if (bound) {
-                service.updateDeviceName(device.getMac(), device.getIp(),
-                        input.getText().toString());
+                service.updateDeviceName(device.getMac(), device.getIp(), input.getText().toString());
                 refreshUI();
             }
         });
@@ -452,10 +453,6 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // ========================================================================
-    // ✅ ARCHITECTURE CHECK
-    // ========================================================================
-
     private void checkArchitectureSupport() {
         BinaryManager bm = new BinaryManager(this);
         String arch = bm.detectArchitecture();
@@ -463,8 +460,7 @@ public class MainActivity extends AppCompatActivity
             new AlertDialog.Builder(this)
                     .setTitle("❌ Unsupported Architecture")
                     .setMessage("This device uses an unsupported CPU architecture.\n\n" +
-                            "Detected ABIs: " + java.util.Arrays.toString(Build.SUPPORTED_ABIS) + "\n\n" +
-                            "Only arm64-v8a and armeabi-v7a are supported.")
+                            "Detected ABIs: " + java.util.Arrays.toString(Build.SUPPORTED_ABIS))
                     .setCancelable(false)
                     .setPositiveButton("Exit", (d, w) -> finish())
                     .show();
@@ -472,7 +468,7 @@ public class MainActivity extends AppCompatActivity
     }
 
     // ========================================================================
-    // ✅ SERVICE CALLBACKS
+    // SERVICE CALLBACKS
     // ========================================================================
 
     @Override
@@ -488,9 +484,7 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onToastMessage(String msg) {
         runOnUiThread(() -> {
-            if (!isFinishing()) {
-                Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
-            }
+            if (!isFinishing()) Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
         });
     }
 }

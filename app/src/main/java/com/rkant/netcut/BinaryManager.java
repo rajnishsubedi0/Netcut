@@ -102,15 +102,7 @@ public class BinaryManager {
     /**
      * Kills any existing netcut processes before starting a new one.
      */
-    public void killExistingProcesses() {
-        String script =
-                "pids=$(pidof netcut_arm64 netcut_armeabi netcut 2>/dev/null); " +
-                        "[ -n \"$pids\" ] && kill -15 $pids 2>/dev/null; " +
-                        "sleep 1; " +
-                        "pids=$(pidof netcut_arm64 netcut_armeabi netcut 2>/dev/null); " +
-                        "[ -n \"$pids\" ] && kill -9 $pids 2>/dev/null";
-        RootManager.execute(script, 5000);
-    }
+
 
     // ========================================================================
     // Internal methods (same as before with minor improvements)
@@ -265,5 +257,17 @@ public class BinaryManager {
         } catch (Exception e) {
             Log.e(TAG, "Failed to delete binaries", e);
         }
+    }
+    /**
+     * Kills any existing netcut processes before starting a new one.
+     */
+    public void killExistingProcesses() {
+        String script =
+                "pids=$(pidof netcut_arm64 netcut_armeabi netcut 2>/dev/null); " +
+                        "[ -n \"$pids\" ] && kill -15 $pids 2>/dev/null; " +
+                        "sleep 1; " +
+                        "pids=$(pidof netcut_arm64 netcut_armeabi netcut 2>/dev/null); " +
+                        "[ -n \"$pids\" ] && kill -9 $pids 2>/dev/null";
+        RootManager.execute(script, 5000);
     }
 }

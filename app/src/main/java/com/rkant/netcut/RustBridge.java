@@ -41,44 +41,35 @@ public class RustBridge {
 
     /**
      * Starts the Rust binary and waits for SERVICE_STARTED event.
-     * Returns true if engine started successfully within timeout.
      */
     public boolean startAndWait(String binaryPath, String iface, String gateway,
                                 BridgeEventListener listener, long timeoutMs) {
         startLatch = new CountDownLatch(1);
         start(binaryPath, iface, gateway, listener);
-
         try {
             boolean started = startLatch.await(timeoutMs, TimeUnit.MILLISECONDS);
             if (!started) {
                 Log.e(TAG, "Engine start timeout after " + timeoutMs + "ms");
-                stop();
+                forceCleanup();
                 return false;
             }
             return isRunning;
-        } catch (InterruptedException e) {
-            return false;
-        }
+        } catch (InterruptedException e) { return false; }
     }
 
-    /**
-     * Starts the Rust binary (non-blocking).
-     */
     public void start(String binaryPath, String iface, String gateway, BridgeEventListener listener) {
         this.listener = listener;
         try {
-            // SELinux handling
-            if (RootManager.isSelinuxEnforcing()) {
-                Log.w(TAG, "SELinux is enforcing. Attempting to set permissive...");
-                RootManager.setSelinuxPermissive();
+            if (RootManager.execute("getenforce", 3000).trim().equalsIgnoreCase("Enforcing")) {
+                RootManager.execute("setenforce 0", 3000);
             }
 
-            // Use exec to replace shell with binary (better signal handling)
+            // Use exec to replace shell with binary
             String cmd = "exec '" + binaryPath + "' '" + iface + "' '" + gateway + "'";
             Log.i(TAG, "Starting binary: " + cmd);
 
             ProcessBuilder pb = new ProcessBuilder("su", "-c", cmd);
-            pb.redirectErrorStream(true); // Merge stderr into stdout for logging
+            pb.redirectErrorStream(true);
             process = pb.start();
 
             stdin = new DataOutputStream(process.getOutputStream());
@@ -87,7 +78,6 @@ public class RustBridge {
             executor.submit(this::readLoop);
             isRunning = true;
             Log.i(TAG, "Rust binary process spawned");
-
         } catch (Exception e) {
             Log.e(TAG, "Failed to start binary", e);
             isRunning = false;
@@ -95,16 +85,17 @@ public class RustBridge {
     }
 
     /**
-     * Graceful stop with restore. Waits for RESTORE_COMPLETED before killing.
-     * Returns true if process exited cleanly.
+     * ✅ CRITICAL FIX: Graceful stop with proper wait for restore.
+     * Waits up to restoreTimeoutMs for RESTORE_COMPLETED, then exitTimeoutMs for exit.
      */
     public boolean stopAndWait(long restoreTimeoutMs, long exitTimeoutMs) {
         if (process == null && !isRunning) {
-            cleanup();
+            forceCleanup();
             return true;
         }
 
         isStopping = true;
+        Log.i(TAG, "stopAndWait: restoreTimeout=" + restoreTimeoutMs + "ms, exitTimeout=" + exitTimeoutMs + "ms");
 
         try {
             // Send restore_and_quit command
@@ -112,6 +103,7 @@ public class RustBridge {
             JSONObject cmd = createCommand("restore_and_quit");
             pendingStopId = cmd.getInt("id");
             sendCommand(cmd);
+            Log.i(TAG, "Sent restore_and_quit, id=" + pendingStopId);
 
             // Wait for restore completion
             boolean restored = stopLatch.await(restoreTimeoutMs, TimeUnit.MILLISECONDS);
@@ -128,40 +120,33 @@ public class RustBridge {
                     Thread.sleep(exitTimeoutMs);
                 }
             }
-
         } catch (Exception e) {
             Log.e(TAG, "stopAndWait failed", e);
         } finally {
             isRunning = false;
             isStopping = false;
             destroyProcessIfAlive();
-            cleanup();
+            forceCleanup();
         }
 
-        return !isProcessAlive();
+        boolean exited = !isProcessAlive();
+        Log.i(TAG, "stopAndWait complete. exited=" + exited);
+        return exited;
     }
 
-    /**
-     * Legacy stop method (kept for compatibility but delegates to stopAndWait).
-     */
     public void stop() {
-        stopAndWait(5000, 3000);
+        stopAndWait(6000, 3000);
     }
 
     public boolean isRunning() { return isRunning; }
 
-    /**
-     * Syncs target list to the native engine.
-     */
     public void syncTargets(List<Device> targets) {
         if (!isRunning || isStopping) return;
         try {
             JSONObject cmd = createCommand("sync");
             JSONArray arr = new JSONArray();
             for (Device d : targets) {
-                if (!Device.isValidIpv4(d.getIp()) || !Device.isValidMac(d.getMac())) {
-                    continue; // Skip invalid entries
-                }
+                if (!Device.isValidIpv4(d.getIp()) || !Device.isValidMac(d.getMac())) continue;
                 JSONObject t = new JSONObject();
                 t.put("ip", d.getIp());
                 t.put("mac", d.getMac());
@@ -174,34 +159,15 @@ public class RustBridge {
         }
     }
 
-    /**
-     * Sends a ping to keep the bridge alive.
-     */
     public void pingBinary() {
         if (!isRunning || isStopping) return;
-        try {
-            sendCommand(createCommand("ping"));
-        } catch (Exception e) {
+        try { sendCommand(createCommand("ping")); } catch (Exception e) {
             Log.e(TAG, "Ping failed", e);
         }
     }
 
-    /**
-     * Requests restore of all targets without quitting.
-     */
-    public void restoreAllTargets() {
-        if (!isRunning || isStopping) return;
-        try {
-            JSONObject cmd = createCommand("sync");
-            cmd.put("targets", new JSONArray());
-            sendCommand(cmd);
-        } catch (Exception e) {
-            Log.e(TAG, "Restore all targets failed", e);
-        }
-    }
-
     // ========================================================================
-    // Internal methods
+    // Internal
     // ========================================================================
 
     private JSONObject createCommand(String command) throws Exception {
@@ -232,24 +198,17 @@ public class RustBridge {
                 try {
                     JSONObject json = new JSONObject(line);
                     handleProtocolEvent(json);
-
                     String event = json.optString("event");
-                    if (listener != null) {
-                        listener.onEvent(event, json);
-                    }
+                    if (listener != null) listener.onEvent(event, json);
                 } catch (Exception e) {
                     Log.w(TAG, "Non-JSON output: " + line);
                 }
             }
         } catch (Exception e) {
-            if (isRunning) {
-                Log.e(TAG, "Read loop crashed", e);
-            }
+            if (isRunning) Log.e(TAG, "Read loop crashed", e);
         } finally {
             isRunning = false;
-            if (listener != null) {
-                listener.onBridgeExited();
-            }
+            if (listener != null) listener.onBridgeExited();
         }
     }
 
@@ -257,19 +216,13 @@ public class RustBridge {
         long id = json.optLong("id", -1);
         String event = json.optString("event", "");
 
-        // Handle startup confirmation
         if ("SERVICE_STARTED".equals(event) && startLatch != null) {
             startLatch.countDown();
         }
 
-        // Handle stop/restore confirmation
         if (pendingStopId >= 0 && id == pendingStopId) {
-            if ("RESTORE_COMPLETED".equals(event) ||
-                    "SYNC_COMPLETED".equals(event) ||
-                    "SUCCESS".equals(event)) {
-                if (stopLatch != null) {
-                    stopLatch.countDown();
-                }
+            if ("RESTORE_COMPLETED".equals(event) || "SYNC_COMPLETED".equals(event) || "SUCCESS".equals(event)) {
+                if (stopLatch != null) stopLatch.countDown();
             }
         }
     }
@@ -280,9 +233,7 @@ public class RustBridge {
                 process.destroy();
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                     boolean exited = process.waitFor(2000, TimeUnit.MILLISECONDS);
-                    if (!exited) {
-                        process.destroyForcibly();
-                    }
+                    if (!exited) process.destroyForcibly();
                 }
             } catch (Exception ignored) {}
         }
@@ -290,23 +241,14 @@ public class RustBridge {
 
     private boolean isProcessAlive() {
         if (process == null) return false;
-        try {
-            process.exitValue();
-            return false; // If exitValue() doesn't throw, process is dead
-        } catch (IllegalThreadStateException e) {
-            return true; // Still running
-        }
+        try { process.exitValue(); return false; }
+        catch (IllegalThreadStateException e) { return true; }
     }
 
-    private void cleanup() {
+    private void forceCleanup() {
         try { if (stdin != null) stdin.close(); } catch (Exception ignored) {}
         try { if (stdout != null) stdout.close(); } catch (Exception ignored) {}
-        if (executor != null) {
-            executor.shutdownNow();
-            executor = null;
-        }
-        process = null;
-        stdin = null;
-        stdout = null;
+        if (executor != null) { executor.shutdownNow(); executor = null; }
+        process = null; stdin = null; stdout = null;
     }
 }

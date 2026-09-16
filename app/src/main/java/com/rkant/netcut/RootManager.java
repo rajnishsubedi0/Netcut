@@ -1,5 +1,6 @@
 package com.rkant.netcut;
 
+import android.os.Build;
 import android.util.Log;
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
@@ -8,35 +9,30 @@ import java.util.concurrent.TimeUnit;
 
 public class RootManager {
     private static final String TAG = "RootManager";
-    private static final long DEFAULT_TIMEOUT_MS = 10000; // 10 seconds
+    private static final long DEFAULT_TIMEOUT_MS = 10000;
 
     public static boolean isRooted() {
         try {
             Process p = Runtime.getRuntime().exec("su -c id");
             BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
             String line = br.readLine();
-            boolean finished = p.waitFor(5, TimeUnit.SECONDS);
+            boolean finished = false;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                finished = p.waitFor(5, TimeUnit.SECONDS);
+            }
             if (!finished) {
-                p.destroyForcibly();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) p.destroyForcibly();
+                else p.destroy();
                 return false;
             }
             return line != null && line.contains("uid=0");
-        } catch (Exception e) {
-            return false;
-        }
+        } catch (Exception e) { return false; }
     }
 
-    /**
-     * Executes a root command with timeout.
-     * Returns output or empty string on failure/timeout.
-     */
     public static String execute(String command) {
         return execute(command, DEFAULT_TIMEOUT_MS);
     }
 
-    /**
-     * Executes a root command with specified timeout.
-     */
     public static String execute(String command, long timeoutMs) {
         StringBuilder output = new StringBuilder();
         Process p = null;
@@ -50,11 +46,27 @@ public class RootManager {
             os.writeBytes("exit\n");
             os.flush();
 
-            boolean finished = p.waitFor(timeoutMs, TimeUnit.MILLISECONDS);
+            boolean finished = false;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                finished = p.waitFor(timeoutMs, TimeUnit.MILLISECONDS);
+            } else {
+                long startTime = System.currentTimeMillis();
+                while (System.currentTimeMillis() - startTime < timeoutMs) {
+                    try {
+                        p.exitValue();
+                        finished = true;
+                        break;
+                    } catch (IllegalThreadStateException e) {
+                        Thread.sleep(100);
+                    }
+                }
+            }
+
             if (!finished) {
-                Log.w(TAG, "Root command timed out: " + command.substring(0, Math.min(50, command.length())));
-                p.destroyForcibly();
-                return "";
+                Log.w(TAG, "Root command timed out");
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) p.destroyForcibly();
+                else p.destroy();
+                return "TIMEOUT";
             }
 
             String line;
@@ -62,38 +74,24 @@ public class RootManager {
                 output.append(line).append("\n");
             }
 
-            // Read stderr for debugging
-            StringBuilder errOutput = new StringBuilder();
+            StringBuilder errOut = new StringBuilder();
             while ((line = errBr.readLine()) != null) {
-                errOutput.append(line).append("\n");
+                errOut.append(line).append("\n");
             }
-            if (errOutput.length() > 0) {
-                Log.d(TAG, "Root stderr: " + errOutput.toString().trim());
-            }
+
+            // ✅ FIX: Append stderr to output so we can catch ping errors
+            output.append(errOut);
 
         } catch (Exception e) {
             Log.e(TAG, "Root execution failed: " + e.getMessage());
         } finally {
             if (p != null) {
-                try { p.destroyForcibly(); } catch (Exception ignored) {}
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) p.destroyForcibly();
+                    else p.destroy();
+                } catch (Exception ignored) {}
             }
         }
         return output.toString();
-    }
-
-    /**
-     * Checks if SELinux is enforcing.
-     */
-    public static boolean isSelinuxEnforcing() {
-        String result = execute("getenforce", 3000);
-        return result.trim().equalsIgnoreCase("Enforcing");
-    }
-
-    /**
-     * Attempts to set SELinux to permissive. Returns true if successful.
-     */
-    public static boolean setSelinuxPermissive() {
-        execute("setenforce 0", 3000);
-        return !isSelinuxEnforcing();
     }
 }

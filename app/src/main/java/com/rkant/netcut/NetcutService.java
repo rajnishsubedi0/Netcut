@@ -31,16 +31,48 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class NetcutService extends Service {
+
     private static final String TAG = "NetcutService";
+
+    // Increased restore timeout.
+    //
+    // Patched main2.rs caps restore time at 5 seconds.
+    // Android side waits 9 seconds to be safe.
+    private static final long RESTORE_TIMEOUT_MS = 9000L;
+    private static final long EXIT_TIMEOUT_MS = 3000L;
 
     private volatile boolean userRequestedRunning = false;
     private volatile boolean waitingForWifi = false;
     private volatile boolean pendingStartAttempt = false;
 
+    private final AtomicBoolean isTransitioning = new AtomicBoolean(false);
+
+    private final Handler syncHandler = new Handler(Looper.getMainLooper());
+
+    private final Runnable syncRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (bridge != null && bridge.isRunning()) {
+                List<Device> activeBanned = new ArrayList<>();
+
+                for (Device d : knownDevices.values()) {
+                    if (d.isBanned() && d.isOnline() &&
+                            Device.isValidIpv4(d.getIp()) && Device.isValidMac(d.getMac())) {
+                        activeBanned.add(d);
+                    }
+                }
+
+                bridge.syncTargets(activeBanned);
+            }
+        }
+    };
+
     private final IBinder binder = new LocalBinder();
-    private RustBridge bridge;
+
+    private volatile RustBridge bridge;
     private DeviceDbHelper dbHelper;
     private ScheduledExecutorService scheduler;
     private ServiceCallback callback;
@@ -49,21 +81,19 @@ public class NetcutService extends Service {
 
     private Map<String, Device> knownDevices = new ConcurrentHashMap<>();
     private List<Device> currentScan = new ArrayList<>();
+
     private ConnectivityManager.NetworkCallback networkCallback;
     private Handler mainHandler = new Handler(Looper.getMainLooper());
 
-    // ✅ WakeLock and WifiLock for background reliability
     private PowerManager.WakeLock wakeLock;
     private WifiManager.WifiLock wifiLock;
 
-    // ✅ Background executor for heavy operations
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
 
-    // ✅ Debounce for WiFi reconnect
-    private Runnable wifiStartRunnable;
-
     public class LocalBinder extends Binder {
-        public NetcutService getService() { return NetcutService.this; }
+        public NetcutService getService() {
+            return NetcutService.this;
+        }
     }
 
     public interface ServiceCallback {
@@ -71,16 +101,19 @@ public class NetcutService extends Service {
         void onToastMessage(String msg);
     }
 
-    public void setCallback(ServiceCallback cb) { this.callback = cb; }
+    public void setCallback(ServiceCallback cb) {
+        this.callback = cb;
+    }
 
     @Override
     public void onCreate() {
         super.onCreate();
+
         dbHelper = new DeviceDbHelper(this);
         binaryManager = new BinaryManager(this);
+
         createNotificationChannel();
         registerNetworkCallback();
-        restoreKnownDevicesFromDb();
     }
 
     @Override
@@ -91,54 +124,127 @@ public class NetcutService extends Service {
                     waitingForWifi ? "Waiting for WiFi..." : "Monitoring network and enforcing bans"
             );
         }
+
         return START_NOT_STICKY;
     }
 
     @Override
-    public IBinder onBind(Intent intent) { return binder; }
+    public IBinder onBind(Intent intent) {
+        return binder;
+    }
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
         Log.d(TAG, "App removed from recents. Stopping and restoring...");
+
         userRequestedRunning = false;
         waitingForWifi = false;
         pendingStartAttempt = false;
+
         mainHandler.removeCallbacksAndMessages(null);
+
         killBinaryGracefully();
+
         super.onTaskRemoved(rootIntent);
     }
 
     @Override
     public void onDestroy() {
-        Log.d(TAG, "Service destroyed. Ensuring binary is killed...");
+        Log.d(TAG, "Service destroyed.");
+
         userRequestedRunning = false;
         waitingForWifi = false;
         pendingStartAttempt = false;
+
         unregisterNetworkCallback();
+
+        boolean hadBridge = bridge != null;
+
         stopBridgeOnly();
-        releaseLocks();
+
+        // If a stop thread was spawned, that thread releases locks after restore.
+        // If there was no bridge, release locks immediately.
+        if (!hadBridge) {
+            releaseLocks();
+        }
+
         ioExecutor.shutdownNow();
+
         super.onDestroy();
     }
 
     // ========================================================================
-    // ✅ ENGINE MANAGEMENT
+    // MANUAL START / STOP
+    // ========================================================================
+
+    public void manualStart() {
+        if (isTransitioning.getAndSet(true)) {
+            Log.w(TAG, "Start blocked: already transitioning");
+            notifyToast("Please wait...");
+            return;
+        }
+
+        userRequestedRunning = true;
+        waitingForWifi = false;
+        pendingStartAttempt = false;
+
+        requestStartWhenReady();
+        notifyDataChanged();
+
+        mainHandler.postDelayed(() -> isTransitioning.set(false), 3000);
+    }
+
+    public void manualStop() {
+        if (isTransitioning.getAndSet(true)) {
+            Log.w(TAG, "Stop blocked: already transitioning");
+            notifyToast("Please wait...");
+            return;
+        }
+
+        userRequestedRunning = false;
+        waitingForWifi = false;
+        pendingStartAttempt = false;
+
+        mainHandler.removeCallbacksAndMessages(null);
+
+        killBinaryGracefully();
+
+        notifyDataChanged();
+
+        mainHandler.postDelayed(() -> isTransitioning.set(false), 3000);
+    }
+
+    public boolean isTransitioning() {
+        return isTransitioning.get();
+    }
+
+    // ========================================================================
+    // ENGINE MANAGEMENT
     // ========================================================================
 
     public boolean startEngine(String iface, String gateway) {
-        if (bridge != null && bridge.isRunning()) return true;
+        if (!userRequestedRunning) {
+            return false;
+        }
+
+        if (bridge != null && bridge.isRunning()) {
+            return true;
+        }
 
         if (bridge != null) {
-            try { bridge.stop(); } catch (Exception ignored) {}
+            try {
+                bridge.stop();
+            } catch (Exception ignored) {
+            }
             bridge = null;
         }
 
-        // Kill any orphaned processes first
         binaryManager.killExistingProcesses();
 
         if (binaryPath == null || binaryPath.isEmpty()) {
             binaryPath = binaryManager.prepareBinary();
         }
+
         if (binaryPath == null) {
             Log.e(TAG, "Binary preparation failed.");
             notifyToast("Error: Failed to prepare native binary.");
@@ -146,35 +252,49 @@ public class NetcutService extends Service {
         }
 
         showForegroundNotification("Netcut Starting", "Starting engine...");
+
         acquireLocks();
 
         bridge = new RustBridge();
-        boolean started = bridge.startAndWait(binaryPath, iface, gateway,
+
+        boolean started = bridge.startAndWait(
+                binaryPath,
+                iface,
+                gateway,
                 new RustBridge.BridgeEventListener() {
                     @Override
                     public void onEvent(String event, JSONObject data) {
                         Log.i(TAG, "Event: " + event);
+
                         if ("SERVICE_STARTED".equals(event)) {
                             waitingForWifi = false;
+
                             startPeriodicScan();
                             syncBannedDevices();
-                            showForegroundNotification("Netcut Active",
-                                    "Monitoring network and enforcing bans");
+
+                            showForegroundNotification(
+                                    "Netcut Active",
+                                    "Monitoring network and enforcing bans"
+                            );
+
                             notifyToast("Service Started");
                         } else if ("ERROR".equals(event)) {
                             String code = data.optString("code", "");
+
                             if ("NETWORK_CHANGED".equals(code) || "INTERFACE_DOWN".equals(code)) {
                                 handleNetworkLost();
                             } else {
                                 notifyToast("Error: " + data.optString("message"));
                             }
                         }
+
                         notifyDataChanged();
                     }
 
                     @Override
                     public void onBridgeExited() {
                         Log.w(TAG, "Rust bridge exited unexpectedly");
+
                         if (userRequestedRunning) {
                             mainHandler.post(() -> {
                                 notifyToast("Engine stopped. Restarting...");
@@ -182,203 +302,229 @@ public class NetcutService extends Service {
                             });
                         }
                     }
-                }, 5000);
+                },
+                5000
+        );
 
         return started;
     }
 
-    public void stopEngine() { manualStop(); }
-    public boolean isEngineRunning() { return bridge != null && bridge.isRunning(); }
-    public void pingBinary() { if (bridge != null) bridge.pingBinary(); }
+    public void stopEngine() {
+        manualStop();
+    }
+
+    public boolean isEngineRunning() {
+        return bridge != null && bridge.isRunning();
+    }
+
+    public void pingBinary() {
+        if (bridge != null) {
+            bridge.pingBinary();
+        }
+    }
 
     // ========================================================================
-    // ✅ BAN/UNBAN OPERATIONS
+    // BAN / UNBAN
     // ========================================================================
 
     public void banDevice(String mac, String ip) {
         if (mac == null) return;
+
         mac = Device.normalizeMac(mac);
+
         dbHelper.setBanned(mac, ip, true);
         updateDeviceBanStateInMemory(mac, ip, true);
+
         syncBannedDevices();
         notifyDataChanged();
     }
 
     public void unbanDevice(String mac) {
         if (mac == null) return;
+
         mac = Device.normalizeMac(mac);
+
         dbHelper.setBanned(mac, null, false);
         updateDeviceBanStateInMemory(mac, null, false);
+
         syncBannedDevices();
         notifyDataChanged();
     }
 
-    /**
-     * Batch ban multiple devices with a single sync.
-     */
     public void banDevices(List<Device> devices) {
         for (Device d : devices) {
             String mac = Device.normalizeMac(d.getMac());
+
             dbHelper.setBanned(mac, d.getIp(), true);
             updateDeviceBanStateInMemory(mac, d.getIp(), true);
         }
-        syncBannedDevices(); // Single sync for all
+
+        syncBannedDevices();
         notifyDataChanged();
     }
 
-    /**
-     * Batch unban all devices with a single sync.
-     */
     public void unbanAllDevices() {
         dbHelper.unbanAll();
-        // Update memory
+
         for (Device d : knownDevices.values()) {
             d.setBanned(false);
         }
+
         synchronized (currentScan) {
             for (Device d : currentScan) {
                 d.setBanned(false);
             }
         }
-        syncBannedDevices(); // Will send empty list
+
+        syncBannedDevices();
         notifyDataChanged();
     }
 
     public void updateDeviceName(String mac, String ip, String name) {
         if (mac == null) return;
+
         mac = Device.normalizeMac(mac);
+
         dbHelper.setName(mac, ip, name);
+
         String safeName = name == null ? "" : name.trim();
 
         Device known = knownDevices.get(mac);
+
         if (known != null) {
             known.setName(safeName);
-            if (ip != null && !ip.trim().isEmpty()) known.setIp(ip.trim());
+
+            if (ip != null && !ip.trim().isEmpty()) {
+                known.setIp(ip.trim());
+            }
         }
 
         synchronized (currentScan) {
             for (Device d : currentScan) {
                 if (mac.equals(d.getMac())) {
                     d.setName(safeName);
-                    if (ip != null && !ip.trim().isEmpty()) d.setIp(ip.trim());
+
+                    if (ip != null && !ip.trim().isEmpty()) {
+                        d.setIp(ip.trim());
+                    }
+
                     break;
                 }
             }
         }
+
         notifyDataChanged();
     }
 
     // ========================================================================
-    // ✅ DATA ACCESS
+    // DATA ACCESS
     // ========================================================================
 
     public List<Device> getConnectedDevices() {
-        synchronized (currentScan) { return new ArrayList<>(currentScan); }
+        synchronized (currentScan) {
+            return new ArrayList<>(currentScan);
+        }
     }
 
-    public List<Device> getBannedDevices() { return dbHelper.getBannedDevices(); }
-    public String getDetectedArchitecture() { return binaryManager.detectArchitecture(); }
-    public boolean isManualModeActive() { return userRequestedRunning; }
-    public boolean isWaitingForWifi() { return waitingForWifi; }
-
-    // ========================================================================
-    // ✅ MANUAL START/STOP
-    // ========================================================================
-
-    public void manualStart() {
-        userRequestedRunning = true;
-        waitingForWifi = false;
-        pendingStartAttempt = false;
-        requestStartWhenReady();
-        notifyDataChanged();
+    public List<Device> getBannedDevices() {
+        return dbHelper.getBannedDevices();
     }
 
-    public void manualStop() {
-        userRequestedRunning = false;
-        waitingForWifi = false;
-        pendingStartAttempt = false;
-        mainHandler.removeCallbacksAndMessages(null);
-        killBinaryGracefully();
-        notifyDataChanged();
+    public String getDetectedArchitecture() {
+        return binaryManager != null ? binaryManager.detectArchitecture() : "unknown";
     }
 
-    public void forceScan() {
-        if (scheduler == null || scheduler.isShutdown()) return;
-        scheduler.execute(this::performScan);
+    public boolean isManualModeActive() {
+        return userRequestedRunning;
+    }
+
+    public boolean isWaitingForWifi() {
+        return waitingForWifi;
     }
 
     // ========================================================================
-    // ✅ INTERNAL: SCANNING
+    // SCANNING
     // ========================================================================
 
     private void startPeriodicScan() {
-        if (scheduler != null && !scheduler.isShutdown()) scheduler.shutdownNow();
+        if (scheduler != null && !scheduler.isShutdown()) {
+            scheduler.shutdownNow();
+        }
+
         scheduler = Executors.newSingleThreadScheduledExecutor();
-        scheduler.scheduleWithFixedDelay(this::performScan, 0, 15, TimeUnit.SECONDS);
+
+        scheduler.scheduleWithFixedDelay(
+                this::performScan,
+                0,
+                15,
+                TimeUnit.SECONDS
+        );
     }
 
     private void performScan() {
         try {
             List<Device> scanned = NetworkScanner.scanArp(this);
 
-            // Mark all known devices offline first
-            for (Device d : knownDevices.values()) d.setOnline(false);
+            for (Device d : knownDevices.values()) {
+                d.setOnline(false);
+            }
 
-            // Update with scanned devices
             for (Device d : scanned) {
                 String mac = Device.normalizeMac(d.getMac());
+
                 Device dbDevice = dbHelper.getDevice(mac);
+
                 if (dbDevice != null) {
                     d.setBanned(dbDevice.isBanned());
+
                     if (dbDevice.getName() != null && !dbDevice.getName().isEmpty()) {
                         d.setName(dbDevice.getName());
                     }
+
                     dbHelper.updateIp(mac, d.getIp());
                 }
+
                 d.setOnline(true);
+
                 knownDevices.put(mac, d);
             }
 
-            // Sort and update currentScan
             synchronized (currentScan) {
                 currentScan.clear();
-                List<Device> sortedDevices = new ArrayList<>(knownDevices.values());
-                sortedDevices.sort((d1, d2) -> {
-                    if (d1.isOnline() == d2.isOnline()) {
-                        return compareIpv4(d1.getIp(), d2.getIp());
+
+                List<Device> onlineOnly = new ArrayList<>();
+
+                for (Device d : knownDevices.values()) {
+                    if (d.isOnline()) {
+                        onlineOnly.add(d);
                     }
-                    return d1.isOnline() ? -1 : 1;
-                });
-                currentScan.addAll(sortedDevices);
+                }
+
+                onlineOnly.sort(this::compareIpv4);
+
+                currentScan.addAll(onlineOnly);
             }
 
             syncBannedDevices();
             notifyDataChanged();
-
         } catch (Exception e) {
             Log.e(TAG, "Scan failed", e);
         }
     }
 
-    /**
-     * Syncs only active (online) banned devices to the native engine.
-     * Prevents poisoning stale/wrong IPs.
-     */
+    public void forceScan() {
+        if (scheduler == null || scheduler.isShutdown()) return;
+
+        scheduler.execute(this::performScan);
+    }
+
     private void syncBannedDevices() {
-        if (bridge != null && bridge.isRunning()) {
-            List<Device> activeBanned = new ArrayList<>();
-            for (Device d : knownDevices.values()) {
-                if (d.isBanned() && d.isOnline() &&
-                        Device.isValidIpv4(d.getIp()) && Device.isValidMac(d.getMac())) {
-                    activeBanned.add(d);
-                }
-            }
-            bridge.syncTargets(activeBanned);
-        }
+        syncHandler.removeCallbacks(syncRunnable);
+        syncHandler.postDelayed(syncRunnable, 300);
     }
 
     // ========================================================================
-    // ✅ INTERNAL: STOP/RESTORE
+    // STOP / RESTORE
     // ========================================================================
 
     private void stopBridgeOnly() {
@@ -390,28 +536,43 @@ public class NetcutService extends Service {
         }
 
         if (b != null) {
-            // Run stop on background thread to avoid blocking main
-            ioExecutor.execute(() -> {
-                boolean exited = b.stopAndWait(6000, 3000);
+            // Important fix:
+            //
+            // Do NOT use ioExecutor here.
+            //
+            // onDestroy() calls ioExecutor.shutdownNow(), which can interrupt
+            // the graceful restore wait and cause the native binary to be killed
+            // before ARP restore completes.
+            //
+            // A dedicated non-daemon thread gives the restore process a better
+            // chance to finish even if the app is removed from recents.
+            Thread stopThread = new Thread(() -> {
+                boolean exited = b.stopAndWait(RESTORE_TIMEOUT_MS, EXIT_TIMEOUT_MS);
+
                 if (!exited) {
                     Log.w(TAG, "Binary did not exit gracefully. Spawning delayed kill.");
                     spawnDelayedKill();
                 }
+
                 releaseLocks();
-            });
+            }, "netcut-graceful-stop");
+
+            stopThread.setDaemon(false);
+            stopThread.start();
         }
     }
 
     private void killBinaryGracefully() {
         stopBridgeOnly();
-        try { stopForeground(true); } catch (Exception ignored) {}
+
+        try {
+            stopForeground(true);
+        } catch (Exception ignored) {
+        }
+
         stopSelf();
     }
 
-    /**
-     * Spawns a detached root script that waits then kills.
-     * Gives the binary time to restore before force-killing.
-     */
     private void spawnDelayedKill() {
         try {
             String script =
@@ -429,27 +590,31 @@ public class NetcutService extends Service {
                             "kill -9 $pids 2>/dev/null";
 
             String escaped = script.replace("'", "'\\''");
+
             Runtime.getRuntime().exec(new String[]{
                     "su", "-c",
                     "setsid sh -c '" + escaped + "' >/dev/null 2>&1 &"
             });
-            Log.d(TAG, "Delayed kill spawned (10s grace period).");
+
+            Log.d(TAG, "Delayed kill spawned.");
         } catch (Exception e) {
             Log.e(TAG, "Failed to spawn delayed kill", e);
         }
     }
 
+    // ========================================================================
+    // WIFI MANAGEMENT
+    // ========================================================================
+
     private void handleNetworkLost() {
         if (!userRequestedRunning) return;
+
         mainHandler.post(() -> pauseEngineForWifiLoss());
     }
 
-    // ========================================================================
-    // ✅ INTERNAL: WIFI MANAGEMENT
-    // ========================================================================
-
     private void registerNetworkCallback() {
         ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+
         if (cm == null) return;
 
         NetworkRequest request = new NetworkRequest.Builder()
@@ -460,15 +625,15 @@ public class NetcutService extends Service {
             @Override
             public void onAvailable(Network network) {
                 if (!userRequestedRunning) return;
-                // Debounce: wait 2 seconds before attempting start
-                mainHandler.removeCallbacks(wifiStartRunnable);
-                wifiStartRunnable = () -> requestStartWhenReady();
-                mainHandler.postDelayed(wifiStartRunnable, 2000);
+
+                mainHandler.removeCallbacksAndMessages(null);
+                mainHandler.postDelayed(() -> requestStartWhenReady(), 2000);
             }
 
             @Override
             public void onLost(Network network) {
                 if (!userRequestedRunning) return;
+
                 mainHandler.post(() -> pauseEngineForWifiLoss());
             }
         };
@@ -483,17 +648,25 @@ public class NetcutService extends Service {
     private void unregisterNetworkCallback() {
         if (networkCallback != null) {
             ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+
             if (cm != null) {
-                try { cm.unregisterNetworkCallback(networkCallback); } catch (Exception ignored) {}
+                try {
+                    cm.unregisterNetworkCallback(networkCallback);
+                } catch (Exception ignored) {
+                }
             }
+
             networkCallback = null;
         }
     }
 
     private void pauseEngineForWifiLoss() {
         if (!userRequestedRunning) return;
+
         stopBridgeOnly();
+
         waitingForWifi = true;
+
         showForegroundNotification("Netcut Waiting", "WiFi disconnected. Waiting...");
         notifyToast("WiFi disconnected. Waiting...");
         notifyDataChanged();
@@ -501,7 +674,9 @@ public class NetcutService extends Service {
 
     private void requestStartWhenReady() {
         if (!userRequestedRunning || pendingStartAttempt) return;
+
         pendingStartAttempt = true;
+
         ioExecutor.execute(() -> attemptStartEngine(30));
     }
 
@@ -510,6 +685,7 @@ public class NetcutService extends Service {
             pendingStartAttempt = false;
             return;
         }
+
         if (isEngineRunning()) {
             waitingForWifi = false;
             pendingStartAttempt = false;
@@ -521,26 +697,38 @@ public class NetcutService extends Service {
 
         if (isGatewayValid(gateway)) {
             waitingForWifi = false;
+
             boolean started = startEngine(iface, gateway);
+
             if (started) {
                 pendingStartAttempt = false;
-                mainHandler.postDelayed(() -> forceScan(), 1000);
+
+                mainHandler.postDelayed(this::forceScan, 1000);
+
                 notifyDataChanged();
+
                 return;
             }
         }
 
         if (retriesLeft > 0 && userRequestedRunning) {
             waitingForWifi = true;
+
             mainHandler.post(() -> {
                 showForegroundNotification("Netcut Waiting", "Waiting for WiFi...");
                 notifyDataChanged();
             });
-            try { Thread.sleep(2000); } catch (InterruptedException ignored) {}
+
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException ignored) {
+            }
+
             attemptStartEngine(retriesLeft - 1);
         } else {
             pendingStartAttempt = false;
             waitingForWifi = true;
+
             mainHandler.post(() -> {
                 showForegroundNotification("Netcut Waiting", "Waiting for WiFi...");
                 notifyToast("Waiting for WiFi...");
@@ -550,18 +738,20 @@ public class NetcutService extends Service {
     }
 
     // ========================================================================
-    // ✅ INTERNAL: WAKELOCK / WIFILOCK
+    // WAKELOCK / WIFILOCK
     // ========================================================================
 
     private void acquireLocks() {
         try {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+
             if (pm != null && wakeLock == null) {
                 wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "netcut:engine");
-                wakeLock.acquire(30 * 60 * 1000L); // 30 min max, refreshed on scan
+                wakeLock.acquire(30 * 60 * 1000L);
             }
 
             WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+
             if (wm != null && wifiLock == null) {
                 wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "netcut:wifi");
                 wifiLock.acquire();
@@ -577,6 +767,7 @@ public class NetcutService extends Service {
                 wakeLock.release();
                 wakeLock = null;
             }
+
             if (wifiLock != null && wifiLock.isHeld()) {
                 wifiLock.release();
                 wifiLock = null;
@@ -587,7 +778,7 @@ public class NetcutService extends Service {
     }
 
     // ========================================================================
-    // ✅ INTERNAL: HELPERS
+    // HELPERS
     // ========================================================================
 
     private boolean isGatewayValid(String gateway) {
@@ -595,72 +786,80 @@ public class NetcutService extends Service {
                 !gateway.equals("0.0.0.0") && Device.isValidIpv4(gateway);
     }
 
-    private int compareIpv4(String a, String b) {
+    private int compareIpv4(Device a, Device b) {
         try {
-            String[] p1 = a.split("\\.");
-            String[] p2 = b.split("\\.");
+            String[] p1 = a.getIp().split("\\.");
+            String[] p2 = b.getIp().split("\\.");
+
             for (int i = 0; i < 4; i++) {
                 int x = Integer.parseInt(p1[i]);
                 int y = Integer.parseInt(p2[i]);
+
                 if (x != y) return Integer.compare(x, y);
             }
+
             return 0;
         } catch (Exception e) {
-            return (a != null ? a : "").compareTo(b != null ? b : "");
+            return (a.getIp() != null ? a.getIp() : "")
+                    .compareTo(b.getIp() != null ? b.getIp() : "");
         }
     }
 
     private void updateDeviceBanStateInMemory(String mac, String ip, boolean banned) {
         if (mac == null) return;
+
         mac = Device.normalizeMac(mac);
 
         Device known = knownDevices.get(mac);
+
         if (known != null) {
             known.setBanned(banned);
-            if (ip != null && !ip.trim().isEmpty()) known.setIp(ip.trim());
+
+            if (ip != null && !ip.trim().isEmpty()) {
+                known.setIp(ip.trim());
+            }
         }
 
         synchronized (currentScan) {
             for (Device d : currentScan) {
                 if (mac.equals(d.getMac())) {
                     d.setBanned(banned);
-                    if (ip != null && !ip.trim().isEmpty()) d.setIp(ip.trim());
+
+                    if (ip != null && !ip.trim().isEmpty()) {
+                        d.setIp(ip.trim());
+                    }
+
                     break;
                 }
             }
         }
     }
 
-    private void restoreKnownDevicesFromDb() {
-        knownDevices.clear();
-        synchronized (currentScan) { currentScan.clear(); }
-
-        List<Device> savedDevices = dbHelper.getSavedDevices();
-        for (Device d : savedDevices) {
-            d.setOnline(false);
-            knownDevices.put(Device.normalizeMac(d.getMac()), d);
+    private void notifyDataChanged() {
+        if (callback != null) {
+            callback.onDataChanged();
         }
-
-        List<Device> sorted = new ArrayList<>(knownDevices.values());
-        sorted.sort((d1, d2) -> {
-            if (d1.isOnline() == d2.isOnline()) {
-                return compareIpv4(d1.getIp(), d2.getIp());
-            }
-            return d1.isOnline() ? -1 : 1;
-        });
-
-        synchronized (currentScan) { currentScan.addAll(sorted); }
     }
 
-    private void notifyDataChanged() { if (callback != null) callback.onDataChanged(); }
-    private void notifyToast(String msg) { if (callback != null) callback.onToastMessage(msg); }
+    private void notifyToast(String msg) {
+        if (callback != null) {
+            callback.onToastMessage(msg);
+        }
+    }
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
-                    "NETCUT_CHANNEL", "Netcut Service", NotificationManager.IMPORTANCE_LOW);
+                    "NETCUT_CHANNEL",
+                    "Netcut Service",
+                    NotificationManager.IMPORTANCE_LOW
+            );
+
             NotificationManager manager = getSystemService(NotificationManager.class);
-            if (manager != null) manager.createNotificationChannel(channel);
+
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
         }
     }
 
@@ -674,8 +873,16 @@ public class NetcutService extends Service {
                     .build();
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(1, notification,
-                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+                try {
+                    startForeground(
+                            1,
+                            notification,
+                            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                    );
+                } catch (IllegalArgumentException e) {
+                    Log.w(TAG, "Foreground type mismatch, falling back to default", e);
+                    startForeground(1, notification);
+                }
             } else {
                 startForeground(1, notification);
             }
