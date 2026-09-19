@@ -3,37 +3,50 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="8dp"
-    android:layout_marginBottom="4dp">
+    android:background="@drawable/bg_card"
+    android:padding="12dp"
+    android:layout_marginBottom="8dp">
 
     <TextView
         android:id="@+id/tv_name"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:text="Unnamed"
         android:textSize="16sp"
-        android:textStyle="bold" />
+        android:textStyle="bold"
+        android:textColor="#D32F2F" />
 
     <TextView
         android:id="@+id/tv_ip"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content"
+        android:text="IP: 192.168.1.1"
+        android:textSize="13sp"
+        android:layout_marginTop="4dp" />
 
     <TextView
         android:id="@+id/tv_mac"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content"
+        android:text="MAC: AA:BB:CC:DD:EE:FF"
+        android:textSize="13sp" />
 
     <TextView
         android:id="@+id/tv_last_seen"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textSize="12sp" />
+        android:text="Last seen: Never"
+        android:textSize="12sp"
+        android:textColor="#757575" />
 
     <Button
         android:id="@+id/btn_unban"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="42dp"
         android:text="Unban"
-        android:layout_marginTop="4dp" />
+        android:textAllCaps="false"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#4CAF50"
+        android:layout_marginTop="8dp" />
 
 </LinearLayout>

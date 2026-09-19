@@ -63,6 +63,7 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
     public synchronized Device getDevice(String mac) {
         if (mac == null || mac.trim().isEmpty()) return null;
         mac = Device.normalizeMac(mac);
+
         SQLiteDatabase db = getReadableDatabase();
         return getDeviceInternal(db, mac);
     }
@@ -104,16 +105,21 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
             values.put(COL_PROTECTED, 0);
             values.put(COL_FIRST_SEEN, firstSeen);
             values.put(COL_LAST_SEEN, lastSeen);
+
             db.insertWithOnConflict(TABLE, null, values, SQLiteDatabase.CONFLICT_REPLACE);
         } else {
             ContentValues values = new ContentValues();
+
             if (ip != null && !ip.trim().isEmpty()) {
                 values.put(COL_IP, ip.trim());
             }
+
             values.put(COL_LAST_SEEN, lastSeen);
+
             if (existing.getFirstSeen() <= 0) {
                 values.put(COL_FIRST_SEEN, firstSeen);
             }
+
             db.update(TABLE, values, COL_MAC + "=?", new String[]{mac});
         }
     }
@@ -140,6 +146,7 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
             } else {
                 values.put(COL_NAME, existing.getRawName());
             }
+
             values.put(COL_PROTECTED, existing.isProtected() ? 1 : 0);
 
             int updated = db.update(TABLE, values, COL_MAC + "=?", new String[]{mac});
@@ -203,6 +210,7 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
             else values.put(COL_NAME, existing.getRawName());
 
             values.put(COL_BANNED, existing.isBanned() ? 1 : 0);
+
             if (existing.getIp() != null && !existing.getIp().trim().isEmpty()) {
                 values.put(COL_IP, existing.getIp());
             }
@@ -215,6 +223,7 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
             values.put(COL_BANNED, 0);
             values.put(COL_FIRST_SEEN, 0);
             values.put(COL_LAST_SEEN, 0);
+
             db.insertWithOnConflict(TABLE, null, values, SQLiteDatabase.CONFLICT_REPLACE);
         }
     }

@@ -104,6 +104,7 @@ public class Device {
         if (ip == null || ip.trim().isEmpty()) return false;
         String[] parts = ip.trim().split("\\.");
         if (parts.length != 4) return false;
+
         for (String part : parts) {
             try {
                 int val = Integer.parseInt(part);
@@ -112,6 +113,7 @@ public class Device {
                 return false;
             }
         }
+
         return true;
     }
 

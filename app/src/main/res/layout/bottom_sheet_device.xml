@@ -3,75 +3,102 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="16dp"
+    android:background="#FFFFFF">
 
     <TextView
         android:id="@+id/tv_sheet_name"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Device"
-        android:textSize="18sp"
-        android:textStyle="bold" />
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="#212121" />
 
     <TextView
         android:id="@+id/tv_sheet_ip"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="IP" />
+        android:text="IP"
+        android:textSize="14sp"
+        android:layout_marginTop="6dp" />
 
     <TextView
         android:id="@+id/tv_sheet_mac"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="MAC" />
+        android:text="MAC"
+        android:textSize="14sp" />
 
     <TextView
         android:id="@+id/tv_sheet_status"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Status" />
+        android:text="Status"
+        android:textSize="14sp" />
 
     <TextView
         android:id="@+id/tv_sheet_first_seen"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="First seen" />
+        android:text="First seen"
+        android:textSize="14sp" />
 
     <TextView
         android:id="@+id/tv_sheet_last_seen"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Last seen" />
+        android:text="Last seen"
+        android:textSize="14sp" />
 
     <Button
         android:id="@+id/btn_sheet_ban"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="48dp"
         android:text="Ban Device"
-        android:layout_marginTop="8dp" />
+        android:textAllCaps="false"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#F44336"
+        android:layout_marginTop="12dp" />
 
     <Button
         android:id="@+id/btn_sheet_protect"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Protect Device" />
+        android:layout_height="48dp"
+        android:text="Protect Device"
+        android:textAllCaps="false"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#2196F3"
+        android:layout_marginTop="6dp" />
 
     <Button
         android:id="@+id/btn_sheet_ping"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Ping" />
+        android:layout_height="48dp"
+        android:text="Ping"
+        android:textAllCaps="false"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#607D8B"
+        android:layout_marginTop="6dp" />
 
     <Button
         android:id="@+id/btn_sheet_rename"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Rename" />
+        android:layout_height="48dp"
+        android:text="Rename"
+        android:textAllCaps="false"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#FF9800"
+        android:layout_marginTop="6dp" />
 
     <Button
         android:id="@+id/btn_sheet_close"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Close" />
+        android:layout_height="48dp"
+        android:text="Close"
+        android:textAllCaps="false"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#9E9E9E"
+        android:layout_marginTop="6dp" />
 
 </LinearLayout>

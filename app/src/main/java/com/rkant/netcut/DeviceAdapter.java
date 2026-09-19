@@ -1,5 +1,6 @@
 package com.rkant.netcut;
 
+import android.content.res.ColorStateList;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -43,8 +44,8 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
         for (Device d : allDevices) {
             validMacs.add(d.getMac());
         }
-        selectedMacs.retainAll(validMacs);
 
+        selectedMacs.retainAll(validMacs);
         applyFilter();
     }
 
@@ -89,7 +90,10 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
     public void clearSelection() {
         selectedMacs.clear();
         notifyDataSetChanged();
-        if (listener != null) listener.onSelectionChanged();
+
+        if (listener != null) {
+            listener.onSelectionChanged();
+        }
     }
 
     public boolean isSelectionActive() {
@@ -126,13 +130,14 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
 
         holder.tvIp.setText("IP: " + d.getIp());
         holder.tvMac.setText("MAC: " + d.getMac());
+        holder.tvLastSeen.setText("Last seen: " + Device.formatLastSeen(d.getLastSeen()));
         holder.tvStatus.setText(d.isOnline() ? "Online" : "Offline");
         holder.tvStatus.setTextColor(d.isOnline() ? 0xFF00C853 : 0xFFFF5252);
-        holder.tvLastSeen.setText("Last seen: " + Device.formatLastSeen(d.getLastSeen()));
 
         String displayName = d.getName();
         if (d.isProtected()) displayName += " 🛡";
         if (d.isBanned()) displayName += " 🚫";
+
         holder.tvName.setText(displayName);
 
         if (d.isBanned()) {
@@ -152,14 +157,6 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
             if (listener != null) listener.onSelectionChanged();
         });
 
-        if (selected) {
-            holder.itemView.setBackgroundColor(0xFFE3F2FD);
-        } else if (d.isBanned()) {
-            holder.itemView.setBackgroundColor(0xFFFFEBEE);
-        } else {
-            holder.itemView.setBackgroundColor(0xFFFFFFFF);
-        }
-
         holder.itemView.setOnLongClickListener(v -> {
             toggleSelection(d.getMac());
             if (listener != null) listener.onSelectionChanged();
@@ -168,6 +165,17 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
 
         holder.btnBan.setText(d.isProtected() ? "Protected" : (d.isBanned() ? "Unban" : "Ban"));
         holder.btnBan.setEnabled(!d.isProtected());
+
+        int banColor;
+        if (d.isProtected()) {
+            banColor = 0xFF9E9E9E;
+        } else if (d.isBanned()) {
+            banColor = 0xFF4CAF50;
+        } else {
+            banColor = 0xFFF44336;
+        }
+
+        holder.btnBan.setBackgroundTintList(ColorStateList.valueOf(banColor));
 
         holder.btnBan.setOnClickListener(v -> {
             if (listener != null) listener.onBanClick(d);

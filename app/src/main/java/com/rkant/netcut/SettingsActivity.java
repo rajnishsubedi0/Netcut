@@ -51,6 +51,7 @@ public class SettingsActivity extends AppCompatActivity {
         if (interval > 300) interval = 300;
 
         SharedPreferences prefs = getSharedPreferences(NetcutService.PREFS_NAME, MODE_PRIVATE);
+
         prefs.edit()
                 .putBoolean(NetcutService.KEY_UNKNOWN_ALERTS, switchUnknownAlerts.isChecked())
                 .putInt(NetcutService.KEY_SCAN_INTERVAL, interval)

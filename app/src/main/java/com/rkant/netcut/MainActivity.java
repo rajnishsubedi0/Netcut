@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -21,6 +22,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -68,7 +70,7 @@ public class MainActivity extends AppCompatActivity
     private BannedDeviceAdapter bannedAdapter;
 
     private RecyclerView rvConnected, rvBanned;
-    private TextView tvStats;
+    private TextView tvStats,deviceStats,serviceStatus;
     private EditText etSearch;
 
     private Button btnStart;
@@ -76,11 +78,9 @@ public class MainActivity extends AppCompatActivity
     private Button btnRestoreAll;
     private Button btnTabConnected;
     private Button btnTabBanned;
+    private ImageView btnSettings,greenRed;
 
-    private Button btnSettings;
-    private Button btnLogs;
-
-    private LinearLayout llSelectionActions;
+    private LinearLayout llSelectionActions,bgRunningNotrunningLayout;
     private Button btnBanSelected;
     private Button btnUnbanSelected;
     private Button btnClearSelection;
@@ -104,6 +104,7 @@ public class MainActivity extends AppCompatActivity
             bound = false;
         }
     };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -124,20 +125,24 @@ public class MainActivity extends AppCompatActivity
         rvBanned = findViewById(R.id.rv_banned);
         tvStats = findViewById(R.id.tv_stats);
         etSearch = findViewById(R.id.et_search);
+        deviceStats=findViewById(R.id.device_stats);
+
+        serviceStatus=findViewById(R.id.service_status);
+        greenRed=findViewById(R.id.green_red);
+
 
         btnStart = findViewById(R.id.btn_start);
         btnBanAll = findViewById(R.id.btn_ban_all);
         btnRestoreAll = findViewById(R.id.btn_restore_all);
         btnTabConnected = findViewById(R.id.btn_tab_connected);
         btnTabBanned = findViewById(R.id.btn_tab_banned);
-
         btnSettings = findViewById(R.id.btn_settings);
-        btnLogs = findViewById(R.id.btn_logs);
 
         llSelectionActions = findViewById(R.id.ll_selection_actions);
         btnBanSelected = findViewById(R.id.btn_ban_selected);
         btnUnbanSelected = findViewById(R.id.btn_unban_selected);
         btnClearSelection = findViewById(R.id.btn_clear_selection);
+        bgRunningNotrunningLayout=findViewById(R.id.bg_running_notrunning_layout);
 
         swipeRefresh = findViewById(R.id.swipe_refresh);
         swipeRefresh.setDistanceToTriggerSync(550);
@@ -175,14 +180,11 @@ public class MainActivity extends AppCompatActivity
             startActivity(new Intent(this, SettingsActivity.class));
         });
 
-        btnLogs.setOnClickListener(v -> {
-            startActivity(new Intent(this, LogsActivity.class));
-        });
-
         btnBanSelected.setOnClickListener(v -> {
             if (!bound || service == null) return;
 
             List<Device> selected = connectedAdapter.getSelectedDevices();
+
             if (selected.isEmpty()) {
                 Toast.makeText(this, "No devices selected", Toast.LENGTH_SHORT).show();
                 return;
@@ -197,6 +199,7 @@ public class MainActivity extends AppCompatActivity
             if (!bound || service == null) return;
 
             List<Device> selected = connectedAdapter.getSelectedDevices();
+
             if (selected.isEmpty()) {
                 Toast.makeText(this, "No devices selected", Toast.LENGTH_SHORT).show();
                 return;
@@ -268,10 +271,6 @@ public class MainActivity extends AppCompatActivity
         ioExecutor.shutdownNow();
     }
 
-    // ========================================================================
-    // NOTIFICATION PERMISSION
-    // ========================================================================
-
     private void checkNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -294,10 +293,6 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // ========================================================================
-    // ROOT CHECK
-    // ========================================================================
-
     private void checkRootAccessAsync() {
         ioExecutor.execute(() -> {
             boolean rooted = RootManager.isRooted();
@@ -316,10 +311,6 @@ public class MainActivity extends AppCompatActivity
             });
         });
     }
-
-    // ========================================================================
-    // BATTERY OPTIMIZATION
-    // ========================================================================
 
     private void checkBatteryOptimization() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
@@ -389,10 +380,6 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // ========================================================================
-    // OEM HINTS
-    // ========================================================================
-
     private void showOemBatteryHint() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         if (prefs.getBoolean(KEY_OEM_HINT_SHOWN, false)) return;
@@ -425,10 +412,6 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // ========================================================================
-    // SERVICE CONTROL
-    // ========================================================================
-
     private void toggleService() {
         if (!bound || service == null) return;
 
@@ -439,17 +422,25 @@ public class MainActivity extends AppCompatActivity
 
         if (service.isManualModeActive()) {
             service.manualStop();
-            btnStart.setText("Start Service");
+            btnStart.setText("Start");
+            btnStart.setBackgroundResource(R.drawable.bg_card_for_start_stop_btn_not_running);
+            serviceStatus.setText("Service is not running");
+            serviceStatus.setTextColor(getColor(R.color.gray));
+            bgRunningNotrunningLayout.setBackgroundResource(R.drawable.bg_card_for_servicenotrunning_layout);
+            greenRed.setImageResource(R.drawable.grey_dot);
+
+
         } else {
             startService(new Intent(this, NetcutService.class));
             service.manualStart();
-            btnStart.setText("Stop Service");
+            btnStart.setText("Stop");
+            btnStart.setBackgroundResource(R.drawable.bg_card_for_start_stop_btn);
+            serviceStatus.setText("Service is running");
+            serviceStatus.setTextColor(getColor(R.color.green_teal));
+            bgRunningNotrunningLayout.setBackgroundResource(R.drawable.bg_card_for_servicerunning_layout);
+            greenRed.setImageResource(R.drawable.green_dot);
         }
     }
-
-    // ========================================================================
-    // RESTORE ALL
-    // ========================================================================
 
     private void confirmRestoreAll() {
         if (!bound || service == null) return;
@@ -471,10 +462,6 @@ public class MainActivity extends AppCompatActivity
         service.unbanAllDevices();
         Toast.makeText(this, "Restoring all devices...", Toast.LENGTH_SHORT).show();
     }
-
-    // ========================================================================
-    // BAN ALL
-    // ========================================================================
 
     private void confirmBanAll() {
         if (!bound || service == null) return;
@@ -518,25 +505,23 @@ public class MainActivity extends AppCompatActivity
         Toast.makeText(this, "Banning all online devices...", Toast.LENGTH_SHORT).show();
     }
 
-    // ========================================================================
-    // TABS / UI
-    // ========================================================================
-
     private void showTab(boolean connected) {
         rvConnected.setVisibility(connected ? RecyclerView.VISIBLE : RecyclerView.GONE);
         rvBanned.setVisibility(connected ? RecyclerView.GONE : RecyclerView.VISIBLE);
 
         if (connected) {
-            btnTabConnected.setBackgroundColor(0xFF2196F3);
-            btnTabConnected.setTextColor(0xFFFFFFFF);
-            btnTabBanned.setBackgroundColor(0xFFEEEEEE);
-            btnTabBanned.setTextColor(0xFF000000);
+            setTabStyle(btnTabConnected, btnTabBanned);
         } else {
-            btnTabBanned.setBackgroundColor(0xFF2196F3);
-            btnTabBanned.setTextColor(0xFFFFFFFF);
-            btnTabConnected.setBackgroundColor(0xFFEEEEEE);
-            btnTabConnected.setTextColor(0xFF000000);
+            setTabStyle(btnTabBanned, btnTabConnected);
         }
+    }
+
+    private void setTabStyle(Button selected, Button unselected) {
+        selected.setBackgroundTintList(ColorStateList.valueOf(0xFF2196F3));
+        selected.setTextColor(0xFFFFFFFF);
+
+        unselected.setBackgroundTintList(ColorStateList.valueOf(0xFFE0E0E0));
+        unselected.setTextColor(0xFF424242);
     }
 
     private void refreshUI() {
@@ -556,17 +541,28 @@ public class MainActivity extends AppCompatActivity
             if (d.isProtected()) protectedCount++;
         }
 
-        tvStats.setText(String.format("Online: %d | Banned: %d | Protected: %d",
-                onlineCount, banned.size(), protectedCount));
+        tvStats.setText(String.format("%d  devices online",
+                onlineCount));
+        deviceStats.setText(String.format("Banned: %d • Protected: %d", banned.size(), protectedCount));
 
         if (service.isManualModeActive()) {
             if (!service.isEngineRunning() && service.isWaitingForWifi()) {
                 btnStart.setText("Waiting...");
             } else {
-                btnStart.setText("Stop Service");
+                btnStart.setText("Stop");
+                btnStart.setBackgroundResource(R.drawable.bg_card_for_start_stop_btn);
+                serviceStatus.setText("Service is running");
+                serviceStatus.setTextColor(getColor(R.color.green_teal));
+                bgRunningNotrunningLayout.setBackgroundResource(R.drawable.bg_card_for_servicerunning_layout);
+                greenRed.setImageResource(R.drawable.green_dot);
             }
         } else {
-            btnStart.setText("Start Service");
+            btnStart.setText("Start");
+            btnStart.setBackgroundResource(R.drawable.bg_card_for_start_stop_btn_not_running);
+            serviceStatus.setText("Service is not running");
+            serviceStatus.setTextColor(getColor(R.color.gray));
+            bgRunningNotrunningLayout.setBackgroundResource(R.drawable.bg_card_for_servicenotrunning_layout);
+            greenRed.setImageResource(R.drawable.grey_dot);
         }
 
         updateSelectionBar();
@@ -585,10 +581,6 @@ public class MainActivity extends AppCompatActivity
             llSelectionActions.setVisibility(View.GONE);
         }
     }
-
-    // ========================================================================
-    // DEVICE ADAPTER CALLBACKS
-    // ========================================================================
 
     @Override
     public void onBanClick(Device device) {
@@ -656,10 +648,6 @@ public class MainActivity extends AppCompatActivity
         });
     }
 
-    // ========================================================================
-    // SERVICE CALLBACKS
-    // ========================================================================
-
     @Override
     public void onDataChanged() {
         runOnUiThread(() -> {
@@ -703,10 +691,6 @@ public class MainActivity extends AppCompatActivity
                     .show();
         });
     }
-
-    // ========================================================================
-    // BOTTOM SHEET
-    // ========================================================================
 
     private void showDeviceBottomSheet(Device device) {
         if (isFinishing()) return;
@@ -808,10 +792,6 @@ public class MainActivity extends AppCompatActivity
         builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
         builder.show();
     }
-
-    // ========================================================================
-    // ARCH CHECK
-    // ========================================================================
 
     private void checkArchitectureSupport() {
         BinaryManager bm = new BinaryManager(this);

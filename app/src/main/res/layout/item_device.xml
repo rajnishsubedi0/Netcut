@@ -2,91 +2,102 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:padding="8dp"
-    android:layout_marginBottom="4dp">
-
-    <CheckBox
-        android:id="@+id/cb_select"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_vertical" />
+    android:orientation="vertical"
+    android:background="@drawable/bg_card"
+    android:padding="12dp"
+    android:layout_marginBottom="8dp">
 
     <LinearLayout
-        android:layout_width="0dp"
-        android:layout_weight="1"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:layout_marginStart="6dp">
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/tv_name"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:text="Unnamed" />
-
-            <TextView
-                android:id="@+id/tv_status"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Online" />
-        </LinearLayout>
+        <CheckBox
+            android:id="@+id/cb_select"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
 
         <TextView
-            android:id="@+id/tv_ip"
-            android:layout_width="match_parent"
+            android:id="@+id/tv_name"
+            android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="wrap_content"
-            android:text="IP: 192.168.1.1" />
+            android:text="Unnamed"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#212121" />
 
         <TextView
-            android:id="@+id/tv_mac"
-            android:layout_width="match_parent"
+            android:id="@+id/tv_status"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="MAC: AA:BB:CC:DD:EE:FF" />
+            android:text="Online"
+            android:textSize="13sp" />
+    </LinearLayout>
 
-        <TextView
-            android:id="@+id/tv_last_seen"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Last seen: Never"
-            android:textSize="12sp" />
+    <TextView
+        android:id="@+id/tv_ip"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="IP: 192.168.1.1"
+        android:textSize="13sp"
+        android:layout_marginTop="4dp" />
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="4dp">
+    <TextView
+        android:id="@+id/tv_mac"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="MAC: AA:BB:CC:DD:EE:FF"
+        android:textSize="13sp" />
 
-            <Button
-                android:id="@+id/btn_ping"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:text="Ping" />
+    <TextView
+        android:id="@+id/tv_last_seen"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Last seen: Never"
+        android:textSize="12sp"
+        android:textColor="#757575" />
 
-            <Button
-                android:id="@+id/btn_ban"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:text="Ban" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
 
-            <Button
-                android:id="@+id/btn_details"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:text="Details" />
-        </LinearLayout>
+        <Button
+            android:id="@+id/btn_ping"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="42dp"
+            android:text="Ping"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#607D8B"
+            android:layout_marginEnd="4dp" />
 
+        <Button
+            android:id="@+id/btn_details"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="42dp"
+            android:text="Details"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#2196F3"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp" />
+
+        <Button
+            android:id="@+id/btn_ban"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="42dp"
+            android:text="Ban"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#F44336"
+            android:layout_marginStart="4dp" />
     </LinearLayout>
 
 </LinearLayout>

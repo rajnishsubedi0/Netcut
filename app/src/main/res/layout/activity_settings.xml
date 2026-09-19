@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="#F5F7FA">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -13,35 +14,90 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Settings"
-            android:textSize="20sp"
-            android:textStyle="bold" />
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="#212121" />
 
-        <Switch
-            android:id="@+id/switch_unknown_alerts"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Unknown device alerts"
-            android:layout_marginTop="16dp" />
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="14dp"
+            android:layout_marginTop="12dp">
 
-        <TextView
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="New Device Detection"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#212121" />
+
+            <Switch
+                android:id="@+id/switch_unknown_alerts"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Show new device alerts"
+                android:textSize="14sp"
+                android:layout_marginTop="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="First scan after service start is ignored. Alerts are shown only for devices found in later scans."
+                android:textSize="12sp"
+                android:textColor="#757575"
+                android:layout_marginTop="6dp" />
+        </LinearLayout>
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Network scan interval (seconds)"
-            android:layout_marginTop="16dp" />
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="14dp"
+            android:layout_marginTop="10dp">
 
-        <EditText
-            android:id="@+id/et_scan_interval"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="number"
-            android:hint="15" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Network Scan"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#212121" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Scan interval in seconds"
+                android:textSize="14sp"
+                android:layout_marginTop="8dp" />
+
+            <EditText
+                android:id="@+id/et_scan_interval"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:inputType="number"
+                android:hint="15"
+                android:textSize="14sp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:background="@drawable/bg_card"
+                android:layout_marginTop="6dp" />
+        </LinearLayout>
 
         <Button
             android:id="@+id/btn_save_settings"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="52dp"
             android:text="Save Settings"
-            android:layout_marginTop="24dp" />
+            android:textAllCaps="false"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#2196F3"
+            android:layout_marginTop="16dp" />
 
     </LinearLayout>
 
