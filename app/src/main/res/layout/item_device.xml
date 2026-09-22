@@ -4,8 +4,9 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/bg_card"
-    android:padding="12dp"
-    android:layout_marginBottom="8dp">
+    android:padding="14dp"
+    android:layout_marginBottom="8dp"
+    android:elevation="2dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -26,14 +27,15 @@
             android:text="Unnamed"
             android:textSize="16sp"
             android:textStyle="bold"
-            android:textColor="#212121" />
+            android:textColor="@color/on_surface" />
 
         <TextView
             android:id="@+id/tv_status"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Online"
-            android:textSize="13sp" />
+            android:textSize="13sp"
+            android:textColor="@color/success"/>
     </LinearLayout>
 
     <TextView
@@ -42,14 +44,16 @@
         android:layout_height="wrap_content"
         android:text="IP: 192.168.1.1"
         android:textSize="13sp"
-        android:layout_marginTop="4dp" />
+        android:layout_marginTop="4dp"
+        android:textColor="@color/on_surface_variant" />
 
     <TextView
         android:id="@+id/tv_mac"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="MAC: AA:BB:CC:DD:EE:FF"
-        android:textSize="13sp" />
+        android:textSize="13sp"
+        android:textColor="@color/on_surface_variant" />
 
     <TextView
         android:id="@+id/tv_last_seen"
@@ -57,7 +61,7 @@
         android:layout_height="wrap_content"
         android:text="Last seen: Never"
         android:textSize="12sp"
-        android:textColor="#757575" />
+        android:textColor="@color/gray_400" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -72,8 +76,8 @@
             android:layout_height="42dp"
             android:text="Ping"
             android:textAllCaps="false"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#607D8B"
+            android:textColor="@color/white"
+            android:backgroundTint="@color/gray_500"
             android:layout_marginEnd="4dp" />
 
         <Button
@@ -83,8 +87,8 @@
             android:layout_height="42dp"
             android:text="Details"
             android:textAllCaps="false"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#2196F3"
+            android:textColor="@color/white"
+            android:backgroundTint="@color/primary"
             android:layout_marginStart="4dp"
             android:layout_marginEnd="4dp" />
 
@@ -95,8 +99,8 @@
             android:layout_height="42dp"
             android:text="Ban"
             android:textAllCaps="false"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#F44336"
+            android:textColor="@color/white"
+            android:backgroundTint="@color/error"
             android:layout_marginStart="4dp" />
     </LinearLayout>
 

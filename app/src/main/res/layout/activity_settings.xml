@@ -2,29 +2,31 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F7FA">
+    android:background="@color/background">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="20dp">
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Settings"
-            android:textSize="22sp"
+            android:textSize="28sp"
             android:textStyle="bold"
-            android:textColor="#212121" />
+            android:textColor="@color/primary"
+            android:layout_marginBottom="16dp"/>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:background="@drawable/bg_card"
-            android:padding="14dp"
-            android:layout_marginTop="12dp">
+            android:padding="16dp"
+            android:layout_marginBottom="12dp"
+            android:elevation="2dp">
 
             <TextView
                 android:layout_width="match_parent"
@@ -32,7 +34,7 @@
                 android:text="New Device Detection"
                 android:textSize="16sp"
                 android:textStyle="bold"
-                android:textColor="#212121" />
+                android:textColor="@color/on_surface" />
 
             <Switch
                 android:id="@+id/switch_unknown_alerts"
@@ -40,15 +42,16 @@
                 android:layout_height="wrap_content"
                 android:text="Show new device alerts"
                 android:textSize="14sp"
-                android:layout_marginTop="8dp" />
+                android:layout_marginTop="8dp"
+                android:textColor="@color/on_surface_variant"/>
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="First scan after service start is ignored. Alerts are shown only for devices found in later scans."
                 android:textSize="12sp"
-                android:textColor="#757575"
-                android:layout_marginTop="6dp" />
+                android:textColor="@color/gray_400"
+                android:layout_marginTop="8dp" />
         </LinearLayout>
 
         <LinearLayout
@@ -56,8 +59,9 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:background="@drawable/bg_card"
-            android:padding="14dp"
-            android:layout_marginTop="10dp">
+            android:padding="16dp"
+            android:layout_marginBottom="12dp"
+            android:elevation="2dp">
 
             <TextView
                 android:layout_width="match_parent"
@@ -65,14 +69,15 @@
                 android:text="Network Scan"
                 android:textSize="16sp"
                 android:textStyle="bold"
-                android:textColor="#212121" />
+                android:textColor="@color/on_surface" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Scan interval in seconds"
                 android:textSize="14sp"
-                android:layout_marginTop="8dp" />
+                android:layout_marginTop="8dp"
+                android:textColor="@color/on_surface_variant"/>
 
             <EditText
                 android:id="@+id/et_scan_interval"
@@ -81,10 +86,13 @@
                 android:inputType="number"
                 android:hint="15"
                 android:textSize="14sp"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
+                android:textColor="@color/on_surface"
+                android:textColorHint="@color/on_surface_variant"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
                 android:background="@drawable/bg_card"
-                android:layout_marginTop="6dp" />
+                android:layout_marginTop="8dp"
+                android:elevation="2dp"/>
         </LinearLayout>
 
         <Button
@@ -95,9 +103,10 @@
             android:textAllCaps="false"
             android:textSize="16sp"
             android:textStyle="bold"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#2196F3"
-            android:layout_marginTop="16dp" />
+            android:textColor="@color/white"
+            android:backgroundTint="@color/primary"
+            android:layout_marginTop="8dp"
+            android:elevation="2dp"/>
 
     </LinearLayout>
 
