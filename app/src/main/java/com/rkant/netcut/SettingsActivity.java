@@ -5,14 +5,15 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.Switch;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.android.material.materialswitch.MaterialSwitch;
+
 public class SettingsActivity extends AppCompatActivity {
 
-    private Switch switchUnknownAlerts;
+    private MaterialSwitch switchUnknownAlerts;
     private EditText etScanInterval;
 
     @Override

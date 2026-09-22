@@ -1,114 +1,278 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="20dp"
-    android:background="@color/surface">
+    android:padding="24dp"
+    android:background="@drawable/bg_card_rounded">
 
+    <!-- Header -->
     <TextView
         android:id="@+id/tv_sheet_name"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Device"
-        android:textSize="22sp"
+        android:text="Device Name"
+        android:textSize="24sp"
         android:textStyle="bold"
-        android:textColor="@color/on_surface" />
+        android:textColor="@color/on_surface"
+        android:fontFamily="sans-serif-medium"
+        android:layout_marginBottom="4dp" />
 
-    <TextView
-        android:id="@+id/tv_sheet_ip"
+    <View
+        android:layout_width="60dp"
+        android:layout_height="4dp"
+        android:background="@color/gray_300"
+        android:layout_marginBottom="20dp" />
+
+    <!-- Device Info Cards -->
+    <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="IP"
-        android:textSize="14sp"
-        android:layout_marginTop="8dp"
-        android:textColor="@color/on_surface_variant" />
+        app:cardBackgroundColor="@color/gray_50"
+        app:cardCornerRadius="12dp"
+        app:strokeWidth="0dp"
+        android:layout_marginBottom="12dp">
 
-    <TextView
-        android:id="@+id/tv_sheet_mac"
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="80dp"
+                    android:layout_height="wrap_content"
+                    android:text="IP Address"
+                    android:textSize="13sp"
+                    android:textColor="@color/gray_500" />
+
+                <TextView
+                    android:id="@+id/tv_sheet_ip"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="192.168.1.1"
+                    android:textSize="15sp"
+                    android:textColor="@color/on_surface"
+                    android:fontFamily="monospace"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/gray_200"
+                android:layout_marginTop="12dp"
+                android:layout_marginBottom="12dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="80dp"
+                    android:layout_height="wrap_content"
+                    android:text="MAC"
+                    android:textSize="13sp"
+                    android:textColor="@color/gray_500" />
+
+                <TextView
+                    android:id="@+id/tv_sheet_mac"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="AA:BB:CC:DD:EE:FF"
+                    android:textSize="15sp"
+                    android:textColor="@color/on_surface"
+                    android:fontFamily="monospace"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Status Card -->
+    <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="MAC"
-        android:textSize="14sp"
-        android:textColor="@color/on_surface_variant" />
+        app:cardBackgroundColor="@color/success_light"
+        app:cardCornerRadius="12dp"
+        app:strokeWidth="1dp"
+        app:strokeColor="@color/success"
+        android:layout_marginBottom="12dp">
 
-    <TextView
-        android:id="@+id/tv_sheet_status"
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="16dp"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_status_dot_green"
+                android:scaleType="fitCenter" />
+
+            <TextView
+                android:id="@+id/tv_sheet_status"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="Online"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="@color/success"
+                android:layout_marginStart="10dp" />
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Timeline Info -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Status"
-        android:textSize="14sp"
-        android:textColor="@color/on_surface_variant" />
+        android:orientation="horizontal"
+        android:layout_marginBottom="12dp">
 
-    <TextView
-        android:id="@+id/tv_sheet_first_seen"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="First seen"
-        android:textSize="14sp"
-        android:textColor="@color/on_surface_variant" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="12dp"
+            android:layout_marginEnd="6dp">
 
-    <TextView
-        android:id="@+id/tv_sheet_last_seen"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Last seen"
-        android:textSize="14sp"
-        android:textColor="@color/on_surface_variant" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="First Seen"
+                android:textSize="12sp"
+                android:textColor="@color/gray_500" />
 
-    <Button
+            <TextView
+                android:id="@+id/tv_sheet_first_seen"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Never"
+                android:textSize="14sp"
+                android:textColor="@color/on_surface"
+                android:textStyle="bold"
+                android:layout_marginTop="4dp" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="12dp"
+            android:layout_marginStart="6dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Last Seen"
+                android:textSize="12sp"
+                android:textColor="@color/gray_500" />
+
+            <TextView
+                android:id="@+id/tv_sheet_last_seen"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Never"
+                android:textSize="14sp"
+                android:textColor="@color/on_surface"
+                android:textStyle="bold"
+                android:layout_marginTop="4dp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Action Buttons -->
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/btn_sheet_ban"
+        style="@style/Widget.Material3.Button"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="52dp"
         android:text="Ban Device"
         android:textAllCaps="false"
-        android:textColor="@color/white"
-        android:backgroundTint="@color/error"
-        android:layout_marginTop="16dp"
-        android:elevation="2dp"/>
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:backgroundTint="@color/error"
+        app:cornerRadius="12dp"
+        android:layout_marginTop="8dp" />
 
-    <Button
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/btn_sheet_protect"
+        style="@style/Widget.Material3.Button"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="52dp"
         android:text="Protect Device"
         android:textAllCaps="false"
-        android:textColor="@color/white"
-        android:backgroundTint="@color/primary"
-        android:layout_marginTop="8dp"
-        android:elevation="2dp"/>
+        android:textSize="16sp"
+        app:backgroundTint="@color/primary"
+        app:cornerRadius="12dp"
+        android:layout_marginTop="8dp" />
 
-    <Button
-        android:id="@+id/btn_sheet_ping"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:text="Ping"
-        android:textAllCaps="false"
-        android:textColor="@color/white"
-        android:backgroundTint="@color/gray_500"
-        android:layout_marginTop="8dp"
-        android:elevation="2dp"/>
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
 
-    <Button
-        android:id="@+id/btn_sheet_rename"
-        android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:text="Rename"
-        android:textAllCaps="false"
-        android:textColor="@color/white"
-        android:backgroundTint="@color/warning"
-        android:layout_marginTop="8dp"
-        android:elevation="2dp"/>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_sheet_ping"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:text="Ping"
+            android:textAllCaps="false"
+            app:backgroundTint="@color/gray_100"
+            app:cornerRadius="12dp"
+            android:layout_marginEnd="6dp" />
 
-    <Button
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_sheet_rename"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:text="Rename"
+            android:textAllCaps="false"
+            app:backgroundTint="@color/warning_light"
+            app:cornerRadius="12dp"
+            android:layout_marginStart="6dp" />
+
+    </LinearLayout>
+
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/btn_sheet_close"
+        style="@style/Widget.Material3.Button.TextButton"
         android:layout_width="match_parent"
         android:layout_height="48dp"
         android:text="Close"
         android:textAllCaps="false"
-        android:textColor="@color/on_surface"
-        android:backgroundTint="@color/gray_200"
-        android:layout_marginTop="8dp"
-        android:elevation="2dp"/>
+        android:textSize="15sp"
+        android:textColor="@color/on_surface_variant"
+        android:layout_marginTop="8dp" />
 
 </LinearLayout>
