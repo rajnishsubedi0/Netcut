@@ -26,9 +26,9 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
-import androidx.activity.OnBackPressedCallback;
 
 import androidx.activity.EdgeToEdge;
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -53,7 +53,8 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity
         implements DeviceAdapter.OnDeviceActionListener,
-        BannedDeviceAdapter.OnUnbanListener,
+        BannedDeviceAdapter.OnBannedDeviceActionListener,
+        ProtectedDeviceAdapter.OnProtectedDeviceActionListener,
         NetcutService.ServiceCallback {
 
     private static final int NOTIFICATION_PERMISSION_CODE = 101;
@@ -65,34 +66,45 @@ public class MainActivity extends AppCompatActivity
     private static final long BATTERY_PROMPT_COOLDOWN_MS = 24 * 60 * 60 * 1000L;
 
     private static boolean batteryWarningShownThisSession = false;
-    private OnBackPressedCallback selectionBackCallback;
 
     private NetcutService service;
     private boolean bound = false;
 
     private DeviceAdapter connectedAdapter;
     private BannedDeviceAdapter bannedAdapter;
+    private ProtectedDeviceAdapter protectedAdapter;
 
-    private RecyclerView rvConnected, rvBanned;
+    private RecyclerView rvConnected, rvBanned, rvProtected;
+
     private TextView tvStats, deviceStats, serviceStatus;
     private EditText etSearch;
+
     private MaterialButton btnStart;
     private MaterialButton btnBanAll;
     private MaterialButton btnRestoreAll;
+
     private MaterialButton btnTabConnected;
     private MaterialButton btnTabBanned;
+    private MaterialButton btnTabProtected;
+
     private MaterialButton btnSettings;
+
     private View greenRed;
     private LinearLayout llSelectionActions;
     private MaterialCardView bgRunningNotrunningLayout;
+
     private MaterialButton btnBanSelected;
     private MaterialButton btnUnbanSelected;
     private MaterialButton btnClearSelection;
+
     private SwipeRefreshLayout swipeRefresh;
 
-    // NEW: header loader + scan progress line
     private ProgressBar progressLoading;
     private ProgressBar scanProgress;
+
+    private View searchContainer;
+
+    private OnBackPressedCallback selectionBackCallback;
 
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -131,27 +143,36 @@ public class MainActivity extends AppCompatActivity
 
         rvConnected = findViewById(R.id.rv_connected);
         rvBanned = findViewById(R.id.rv_banned);
+        rvProtected = findViewById(R.id.rv_protected);
+
         tvStats = findViewById(R.id.tv_stats);
         etSearch = findViewById(R.id.et_search);
         deviceStats = findViewById(R.id.device_stats);
         serviceStatus = findViewById(R.id.service_status);
         greenRed = findViewById(R.id.green_red);
+
         btnStart = findViewById(R.id.btn_start);
         btnBanAll = findViewById(R.id.btn_ban_all);
         btnRestoreAll = findViewById(R.id.btn_restore_all);
+
         btnTabConnected = findViewById(R.id.btn_tab_connected);
         btnTabBanned = findViewById(R.id.btn_tab_banned);
+        btnTabProtected = findViewById(R.id.btn_tab_protected);
+
         btnSettings = findViewById(R.id.btn_settings);
+
         llSelectionActions = findViewById(R.id.ll_selection_actions);
         btnBanSelected = findViewById(R.id.btn_ban_selected);
         btnUnbanSelected = findViewById(R.id.btn_unban_selected);
         btnClearSelection = findViewById(R.id.btn_clear_selection);
+
         bgRunningNotrunningLayout = findViewById(R.id.bg_running_notrunning_layout);
         swipeRefresh = findViewById(R.id.swipe_refresh);
 
-        // NEW: loader widgets
         progressLoading = findViewById(R.id.progress_loading);
         scanProgress = findViewById(R.id.scan_progress);
+
+        searchContainer = findViewById(R.id.search_container);
 
         swipeRefresh.setDistanceToTriggerSync(550);
         swipeRefresh.setColorSchemeColors(getColor(R.color.primary));
@@ -160,40 +181,35 @@ public class MainActivity extends AppCompatActivity
 
         rvConnected.setLayoutManager(new LinearLayoutManager(this));
         rvBanned.setLayoutManager(new LinearLayoutManager(this));
+        rvProtected.setLayoutManager(new LinearLayoutManager(this));
 
         connectedAdapter = new DeviceAdapter(new ArrayList<>(), this);
         bannedAdapter = new BannedDeviceAdapter(new ArrayList<>(), this);
+        protectedAdapter = new ProtectedDeviceAdapter(new ArrayList<>(), this);
+
         rvConnected.setAdapter(connectedAdapter);
         rvBanned.setAdapter(bannedAdapter);
-
-        selectionBackCallback = new OnBackPressedCallback(false) {
-            @Override
-            public void handleOnBackPressed() {
-                if (connectedAdapter != null && connectedAdapter.isSelectionActive()) {
-                    connectedAdapter.clearSelection();
-                    refreshUI();
-                }
-                setEnabled(false);
-            }
-        };
-        getOnBackPressedDispatcher().addCallback(this, selectionBackCallback);
+        rvProtected.setAdapter(protectedAdapter);
 
         btnStart.setOnClickListener(v -> toggleService());
         btnBanAll.setOnClickListener(v -> confirmBanAll());
         btnRestoreAll.setOnClickListener(v -> confirmRestoreAll());
-        btnTabConnected.setOnClickListener(v -> showTab(true));
-        btnTabBanned.setOnClickListener(v -> showTab(false));
 
-        // NEW: three-dot overflow menu instead of direct Settings launch
+        btnTabConnected.setOnClickListener(v -> showTab(0));
+        btnTabBanned.setOnClickListener(v -> showTab(1));
+        btnTabProtected.setOnClickListener(v -> showTab(2));
+
         btnSettings.setOnClickListener(v -> showOverflowMenu(v));
 
         btnBanSelected.setOnClickListener(v -> {
             if (!bound || service == null) return;
+
             List<Device> selected = connectedAdapter.getSelectedDevices();
             if (selected.isEmpty()) {
                 Toast.makeText(this, "No devices selected", Toast.LENGTH_SHORT).show();
                 return;
             }
+
             service.banDevices(selected);
             connectedAdapter.clearSelection();
             refreshUI();
@@ -201,11 +217,13 @@ public class MainActivity extends AppCompatActivity
 
         btnUnbanSelected.setOnClickListener(v -> {
             if (!bound || service == null) return;
+
             List<Device> selected = connectedAdapter.getSelectedDevices();
             if (selected.isEmpty()) {
                 Toast.makeText(this, "No devices selected", Toast.LENGTH_SHORT).show();
                 return;
             }
+
             service.unbanDevices(selected);
             connectedAdapter.clearSelection();
             refreshUI();
@@ -217,18 +235,35 @@ public class MainActivity extends AppCompatActivity
         });
 
         etSearch.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
-            @Override public void onTextChanged(CharSequence s, int a, int b, int c) {}
+            @Override
+            public void beforeTextChanged(CharSequence s, int a, int b, int c) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int a, int b, int c) {
+            }
 
             @Override
             public void afterTextChanged(Editable s) {
                 String q = s == null ? "" : s.toString();
                 connectedAdapter.setFilter(q);
                 bannedAdapter.setFilter(q);
+                protectedAdapter.setFilter(q);
             }
         });
 
-        showTab(true);
+        selectionBackCallback = new OnBackPressedCallback(false) {
+            @Override
+            public void handleOnBackPressed() {
+                if (connectedAdapter != null && connectedAdapter.isSelectionActive()) {
+                    connectedAdapter.clearSelection();
+                }
+                setEnabled(false);
+            }
+        };
+        getOnBackPressedDispatcher().addCallback(this, selectionBackCallback);
+
+        showTab(0);
     }
 
     @Override
@@ -263,8 +298,9 @@ public class MainActivity extends AppCompatActivity
     }
 
     // ──────────────────────────────────────────────
-    //  NEW: SCAN TRIGGER + OVERFLOW MENU + LOADER
+    //  SCAN + OVERFLOW MENU
     // ──────────────────────────────────────────────
+
     private void triggerScan(boolean showScanToast) {
         if (bound && service != null && service.isEngineRunning()) {
             if (showScanToast) {
@@ -302,8 +338,10 @@ public class MainActivity extends AppCompatActivity
     private void showOverflowMenu(View anchor) {
         PopupMenu popup = new PopupMenu(this, anchor);
         popup.getMenuInflater().inflate(R.menu.menu_main, popup.getMenu());
+
         popup.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
+
             if (id == R.id.menu_settings) {
                 startActivity(new Intent(this, SettingsActivity.class));
                 return true;
@@ -311,8 +349,10 @@ public class MainActivity extends AppCompatActivity
                 triggerScan(true);
                 return true;
             }
+
             return false;
         });
+
         popup.show();
     }
 
@@ -327,6 +367,7 @@ public class MainActivity extends AppCompatActivity
     // ──────────────────────────────────────────────
     //  PERMISSIONS & CHECKS
     // ──────────────────────────────────────────────
+
     private void checkNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -341,6 +382,7 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
         if (requestCode == NOTIFICATION_PERMISSION_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 Toast.makeText(this, "Notification permission granted ✔", Toast.LENGTH_SHORT).show();
@@ -351,6 +393,7 @@ public class MainActivity extends AppCompatActivity
     private void checkRootAccessAsync() {
         ioExecutor.execute(() -> {
             boolean rooted = RootManager.isRooted();
+
             mainHandler.post(() -> {
                 if (!rooted && !isFinishing()) {
                     new AlertDialog.Builder(this)
@@ -369,6 +412,7 @@ public class MainActivity extends AppCompatActivity
     private void checkArchitectureSupport() {
         BinaryManager bm = new BinaryManager(this);
         String arch = bm.detectArchitecture();
+
         if (arch == null) {
             new AlertDialog.Builder(this)
                     .setTitle("❌ Unsupported Architecture")
@@ -383,6 +427,7 @@ public class MainActivity extends AppCompatActivity
     // ──────────────────────────────────────────────
     //  BATTERY OPTIMIZATION
     // ──────────────────────────────────────────────
+
     private void checkBatteryOptimization() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
         if (isFinishing()) return;
@@ -391,12 +436,14 @@ public class MainActivity extends AppCompatActivity
         if (pm == null) return;
 
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+
         if (prefs.getBoolean(KEY_BATTERY_OPT_DONT_ASK, false)) return;
         if (pm.isIgnoringBatteryOptimizations(getPackageName())) return;
         if (batteryWarningShownThisSession) return;
 
         long lastPromptTime = prefs.getLong(KEY_BATTERY_PROMPT_LAST_TIME, 0L);
         long now = System.currentTimeMillis();
+
         if (lastPromptTime != 0 && now - lastPromptTime < BATTERY_PROMPT_COOLDOWN_MS) return;
 
         showBatteryOptimizationDialog();
@@ -404,6 +451,7 @@ public class MainActivity extends AppCompatActivity
 
     private void showBatteryOptimizationDialog() {
         if (isFinishing()) return;
+
         batteryWarningShownThisSession = true;
 
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
@@ -415,7 +463,8 @@ public class MainActivity extends AppCompatActivity
                         "Tap 'Allow Now' to exclude this app from battery optimization.")
                 .setCancelable(false)
                 .setPositiveButton("Allow Now", (d, w) -> requestIgnoreBatteryOptimizations())
-                .setNegativeButton("Not Now", (d, w) -> {})
+                .setNegativeButton("Not Now", (d, w) -> {
+                })
                 .setNeutralButton("Don't ask again", (d, w) ->
                         prefs.edit().putBoolean(KEY_BATTERY_OPT_DONT_ASK, true).apply())
                 .show();
@@ -429,7 +478,8 @@ public class MainActivity extends AppCompatActivity
         } catch (Exception e) {
             try {
                 startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
     }
 
@@ -439,6 +489,7 @@ public class MainActivity extends AppCompatActivity
 
         String manufacturer = Build.MANUFACTURER.toLowerCase();
         String hint = null;
+
         if (manufacturer.contains("samsung")) {
             hint = "Samsung: Add this app to 'Never sleeping apps' in Battery settings.";
         } else if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi")) {
@@ -466,8 +517,9 @@ public class MainActivity extends AppCompatActivity
     }
 
     // ──────────────────────────────────────────────
-    //  SERVICE TOGGLE  (play/pause icon button)
+    //  SERVICE TOGGLE
     // ──────────────────────────────────────────────
+
     private void toggleService() {
         if (!bound || service == null) return;
 
@@ -483,41 +535,44 @@ public class MainActivity extends AppCompatActivity
             startService(new Intent(this, NetcutService.class));
             service.manualStart();
             applyRunningUI();
-            showLoader(); // spinner until engine reports ready
+            showLoader();
         }
     }
 
-    /** Running look: round PAUSE button (tap to stop). */
     private void applyRunningUI() {
         btnStart.setIconResource(R.drawable.ic_pause);
         btnStart.setIconTintResource(R.color.btn_stop_text);
         btnStart.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.btn_stop_bg)));
         btnStart.setContentDescription("Stop service");
+
         hideLoader();
 
         serviceStatus.setText("Service is running");
         serviceStatus.setTextColor(getColor(R.color.status_running));
+
         bgRunningNotrunningLayout.setCardBackgroundColor(getColor(R.color.status_running_bg));
         bgRunningNotrunningLayout.setStrokeColor(getColor(R.color.success));
+
         setDotColor(greenRed, getColor(R.color.status_running));
     }
 
-    /** Stopped look: round PLAY button (tap to start). */
     private void applyStoppedUI() {
         btnStart.setIconResource(R.drawable.ic_play);
         btnStart.setIconTintResource(R.color.btn_start_text);
         btnStart.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.btn_start_bg)));
         btnStart.setContentDescription("Start service");
+
         hideLoader();
 
         serviceStatus.setText("Service is not running");
         serviceStatus.setTextColor(getColor(R.color.text_secondary));
+
         bgRunningNotrunningLayout.setCardBackgroundColor(getColor(R.color.status_stopped_bg));
         bgRunningNotrunningLayout.setStrokeColor(getColor(R.color.border));
+
         setDotColor(greenRed, getColor(R.color.status_stopped));
     }
 
-    /** Draws a perfect circle on a plain View — no drawable file needed. */
     private void setDotColor(View dotView, int color) {
         GradientDrawable dot = new GradientDrawable();
         dot.setShape(GradientDrawable.OVAL);
@@ -528,9 +583,12 @@ public class MainActivity extends AppCompatActivity
     // ──────────────────────────────────────────────
     //  BAN ALL / RESTORE ALL
     // ──────────────────────────────────────────────
+
     private void confirmRestoreAll() {
         if (!bound || service == null) return;
+
         int bannedCount = service.getBannedDevices().size();
+
         new AlertDialog.Builder(this)
                 .setTitle("Restore All Devices?")
                 .setMessage("This will unban " + bannedCount +
@@ -542,20 +600,24 @@ public class MainActivity extends AppCompatActivity
 
     private void restoreAll() {
         if (!bound || service == null) return;
+
         service.unbanAllDevices();
         Toast.makeText(this, "Restoring all devices...", Toast.LENGTH_SHORT).show();
     }
 
     private void confirmBanAll() {
         if (!bound || service == null) return;
+
         int online = 0;
         int protect = 0;
+
         for (Device d : service.getConnectedDevices()) {
             if (d.isOnline()) {
                 if (d.isProtected()) protect++;
                 else online++;
             }
         }
+
         new AlertDialog.Builder(this)
                 .setTitle("Ban All Devices?")
                 .setMessage("Ban " + online + " online device(s).\n" +
@@ -567,63 +629,82 @@ public class MainActivity extends AppCompatActivity
 
     private void performBanAll() {
         if (!bound || service == null) return;
+
         List<Device> toBan = new ArrayList<>();
+
         for (Device device : service.getConnectedDevices()) {
             if (device.isOnline() && !device.isProtected()) {
                 toBan.add(device);
             }
         }
+
         if (toBan.isEmpty()) {
             Toast.makeText(this, "No online unprotected devices to ban", Toast.LENGTH_SHORT).show();
             return;
         }
+
         service.banDevices(toBan);
         Toast.makeText(this, "Banning all online devices...", Toast.LENGTH_SHORT).show();
     }
 
     // ──────────────────────────────────────────────
-    //  TABS  (dynamic, no hardcoded hex)
+    //  TABS
     // ──────────────────────────────────────────────
-    private void showTab(boolean connected) {
-        rvConnected.setVisibility(connected ? RecyclerView.VISIBLE : RecyclerView.GONE);
-        rvBanned.setVisibility(connected ? RecyclerView.GONE : RecyclerView.VISIBLE);
-        if (connected) {
-            setTabStyle(btnTabConnected, btnTabBanned);
-        } else {
-            setTabStyle(btnTabBanned, btnTabConnected);
+
+    private void showTab(int tab) {
+        rvConnected.setVisibility(tab == 0 ? RecyclerView.VISIBLE : RecyclerView.GONE);
+        rvBanned.setVisibility(tab == 1 ? RecyclerView.VISIBLE : RecyclerView.GONE);
+        rvProtected.setVisibility(tab == 2 ? RecyclerView.VISIBLE : RecyclerView.GONE);
+
+        updateTabStyles(tab);
+
+        if (tab != 0 && connectedAdapter != null && connectedAdapter.isSelectionActive()) {
+            connectedAdapter.clearSelection();
         }
     }
 
-    private void setTabStyle(MaterialButton selected, MaterialButton unselected) {
-        selected.setBackgroundTintList(
-                ColorStateList.valueOf(getColor(R.color.tab_selected_bg)));
-        selected.setTextColor(getColor(R.color.tab_selected_text));
-        unselected.setBackgroundTintList(
-                ColorStateList.valueOf(getColor(R.color.tab_unselected_bg)));
-        unselected.setTextColor(getColor(R.color.tab_unselected_text));
+    private void updateTabStyles(int selectedTab) {
+        styleTab(btnTabConnected, selectedTab == 0);
+        styleTab(btnTabBanned, selectedTab == 1);
+        styleTab(btnTabProtected, selectedTab == 2);
+    }
+
+    private void styleTab(MaterialButton button, boolean selected) {
+        if (button == null) return;
+
+        if (selected) {
+            button.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.tab_selected_bg)));
+            button.setTextColor(getColor(R.color.tab_selected_text));
+        } else {
+            button.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.tab_unselected_bg)));
+            button.setTextColor(getColor(R.color.tab_unselected_text));
+        }
     }
 
     // ──────────────────────────────────────────────
     //  REFRESH UI
     // ──────────────────────────────────────────────
+
     private void refreshUI() {
         if (!bound || service == null || isFinishing()) return;
+        if (connectedAdapter == null || bannedAdapter == null || protectedAdapter == null) return;
 
         List<Device> connected = service.getConnectedDevices();
         List<Device> banned = service.getBannedDevices();
+        List<Device> protectedDevices = service.getProtectedDevices();
 
         connectedAdapter.updateDevices(connected);
         bannedAdapter.updateDevices(banned);
+        protectedAdapter.updateDevices(protectedDevices);
 
         int onlineCount = 0;
-        int protectedCount = 0;
         for (Device d : connected) {
             if (d.isOnline()) onlineCount++;
-            if (d.isProtected()) protectedCount++;
         }
 
         tvStats.setText(String.format("%d devices online", onlineCount));
-        deviceStats.setText(String.format("Banned: %d • Protected: %d", banned.size(), protectedCount));
+        deviceStats.setText(String.format("Banned: %d • Protected: %d",
+                banned.size(), protectedDevices.size()));
 
         if (service.isManualModeActive()) {
             if (!service.isEngineRunning() && service.isWaitingForWifi()) {
@@ -645,7 +726,7 @@ public class MainActivity extends AppCompatActivity
     }
 
     private void updateSelectionBar() {
-        if (connectedAdapter == null || llSelectionActions == null) return;
+        if (connectedAdapter == null || llSelectionActions == null || searchContainer == null) return;
 
         int selected = connectedAdapter.getSelectedItemCount();
 
@@ -654,32 +735,42 @@ public class MainActivity extends AppCompatActivity
         }
 
         if (selected > 0) {
+            searchContainer.setVisibility(View.GONE);
             llSelectionActions.setVisibility(View.VISIBLE);
+
             btnBanSelected.setText("Ban (" + selected + ")");
             btnUnbanSelected.setText("Unban (" + selected + ")");
         } else {
             llSelectionActions.setVisibility(View.GONE);
+            searchContainer.setVisibility(View.VISIBLE);
         }
     }
 
     // ──────────────────────────────────────────────
-    //  ADAPTER CALLBACKS
+    //  CONNECTED LIST CALLBACKS
     // ──────────────────────────────────────────────
+
     @Override
     public void onBanClick(Device device) {
         if (!bound || service == null) return;
+
         if (device.isProtected()) {
             Toast.makeText(this, "Cannot ban protected device", Toast.LENGTH_SHORT).show();
             return;
         }
+
         boolean newState = !device.isBanned();
+
         ioExecutor.execute(() -> {
             if (newState) {
                 service.banDevice(device.getMac(), device.getIp());
             } else {
                 service.unbanDevice(device.getMac());
             }
-            mainHandler.postDelayed(this::refreshUI, 300);
+
+            mainHandler.postDelayed(() -> {
+                if (!isFinishing()) refreshUI();
+            }, 300);
         });
     }
 
@@ -687,13 +778,18 @@ public class MainActivity extends AppCompatActivity
     public void onPingClick(Device device) {
         String ip = device.getIp();
         if (!Device.isValidIpv4(ip)) return;
+
         Toast.makeText(this, "Pinging " + ip + "...", Toast.LENGTH_SHORT).show();
+
         ioExecutor.execute(() -> {
             String output = RootManager.execute("ping -c 1 " + ip, 4000);
+
             boolean reachable = output != null &&
                     !output.contains("TIMEOUT") &&
                     (output.contains("time=") || output.contains("bytes from") || output.contains("1 received"));
+
             String msg = reachable ? ip + " is reachable ✔" : ip + " is unreachable ✖";
+
             mainHandler.post(() -> {
                 if (!isFinishing()) Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
             });
@@ -710,22 +806,55 @@ public class MainActivity extends AppCompatActivity
         updateSelectionBar();
     }
 
+    // ──────────────────────────────────────────────
+    //  BANNED LIST CALLBACKS
+    // ──────────────────────────────────────────────
+
     @Override
     public void onUnbanClick(Device device) {
         if (!bound || service == null) return;
+
         ioExecutor.execute(() -> {
             service.unbanDevice(device.getMac());
-            mainHandler.postDelayed(this::refreshUI, 300);
+
+            mainHandler.postDelayed(() -> {
+                if (!isFinishing()) refreshUI();
+            }, 300);
         });
     }
+
+    @Override
+    public void onBannedDeviceClick(Device device) {
+        showBannedDeviceBottomSheet(device);
+    }
+
+    // ──────────────────────────────────────────────
+    //  PROTECTED LIST CALLBACKS
+    // ──────────────────────────────────────────────
+
+    @Override
+    public void onRemoveProtectionClick(Device device) {
+        removeProtection(device);
+    }
+
+    @Override
+    public void onProtectedDeviceClick(Device device) {
+        showProtectedDeviceBottomSheet(device);
+    }
+
+    // ──────────────────────────────────────────────
+    //  SERVICE CALLBACKS
+    // ──────────────────────────────────────────────
 
     @Override
     public void onDataChanged() {
         runOnUiThread(() -> {
             if (!isFinishing()) {
                 refreshUI();
+
                 if (swipeRefresh != null) swipeRefresh.setRefreshing(false);
                 if (scanProgress != null) scanProgress.setVisibility(View.GONE);
+
                 hideLoader();
             }
         });
@@ -742,6 +871,7 @@ public class MainActivity extends AppCompatActivity
     public void onNewDeviceDetected(Device device) {
         runOnUiThread(() -> {
             if (isFinishing()) return;
+
             new AlertDialog.Builder(this)
                     .setTitle("🆕 New Device Detected")
                     .setMessage("A new device joined the network.\n\n" +
@@ -761,8 +891,9 @@ public class MainActivity extends AppCompatActivity
     }
 
     // ──────────────────────────────────────────────
-    //  BOTTOM SHEET
+    //  CONNECTED DEVICE BOTTOM SHEET
     // ──────────────────────────────────────────────
+
     private void showDeviceBottomSheet(Device device) {
         if (isFinishing()) return;
 
@@ -776,11 +907,13 @@ public class MainActivity extends AppCompatActivity
         TextView tvSheetStatus = sheet.findViewById(R.id.tv_sheet_status);
         TextView tvSheetFirstSeen = sheet.findViewById(R.id.tv_sheet_first_seen);
         TextView tvSheetLastSeen = sheet.findViewById(R.id.tv_sheet_last_seen);
+
         MaterialButton btnSheetBan = sheet.findViewById(R.id.btn_sheet_ban);
         MaterialButton btnSheetProtect = sheet.findViewById(R.id.btn_sheet_protect);
         MaterialButton btnSheetPing = sheet.findViewById(R.id.btn_sheet_ping);
         MaterialButton btnSheetRename = sheet.findViewById(R.id.btn_sheet_rename);
         MaterialButton btnSheetClose = sheet.findViewById(R.id.btn_sheet_close);
+
         View dotSheetStatus = sheet.findViewById(R.id.dot_sheet_status);
         MaterialCardView cardSheetStatus = sheet.findViewById(R.id.card_sheet_status);
 
@@ -789,9 +922,12 @@ public class MainActivity extends AppCompatActivity
         tvSheetMac.setText(device.getMac());
 
         boolean online = device.isOnline();
+
         tvSheetStatus.setText(online ? "Online" : "Offline");
         tvSheetStatus.setTextColor(getColor(online ? R.color.success : R.color.error));
+
         setDotColor(dotSheetStatus, getColor(online ? R.color.success : R.color.error));
+
         cardSheetStatus.setCardBackgroundColor(getColor(online ? R.color.success_container : R.color.error_container));
         cardSheetStatus.setStrokeColor(getColor(online ? R.color.success : R.color.error));
 
@@ -804,6 +940,7 @@ public class MainActivity extends AppCompatActivity
             btnSheetBan.setBackgroundTintList(
                     ColorStateList.valueOf(getColor(R.color.surface_variant)));
             btnSheetBan.setTextColor(getColor(R.color.text_tertiary));
+
             btnSheetProtect.setText("Remove Protection");
         } else {
             btnSheetBan.setEnabled(true);
@@ -811,6 +948,7 @@ public class MainActivity extends AppCompatActivity
             btnSheetBan.setBackgroundTintList(
                     ColorStateList.valueOf(getColor(device.isBanned() ? R.color.success : R.color.error)));
             btnSheetBan.setTextColor(getColor(device.isBanned() ? R.color.on_success : R.color.on_error));
+
             btnSheetProtect.setText("Protect Device");
         }
 
@@ -819,13 +957,20 @@ public class MainActivity extends AppCompatActivity
                 dialog.dismiss();
                 return;
             }
-            if (device.isBanned()) {
-                ioExecutor.execute(() -> service.unbanDevice(device.getMac()));
-            } else {
-                ioExecutor.execute(() -> service.banDevice(device.getMac(), device.getIp()));
-            }
+
             dialog.dismiss();
-            mainHandler.postDelayed(this::refreshUI, 300);
+
+            ioExecutor.execute(() -> {
+                if (device.isBanned()) {
+                    service.unbanDevice(device.getMac());
+                } else {
+                    service.banDevice(device.getMac(), device.getIp());
+                }
+
+                mainHandler.postDelayed(() -> {
+                    if (!isFinishing()) refreshUI();
+                }, 300);
+            });
         });
 
         btnSheetProtect.setOnClickListener(v -> {
@@ -833,10 +978,18 @@ public class MainActivity extends AppCompatActivity
                 dialog.dismiss();
                 return;
             }
+
             boolean newProtect = !device.isProtected();
-            ioExecutor.execute(() -> service.setProtected(device.getMac(), newProtect));
+
             dialog.dismiss();
-            mainHandler.postDelayed(this::refreshUI, 300);
+
+            ioExecutor.execute(() -> {
+                service.setProtected(device.getMac(), newProtect);
+
+                mainHandler.postDelayed(() -> {
+                    if (!isFinishing()) refreshUI();
+                }, 300);
+            });
         });
 
         btnSheetPing.setOnClickListener(v -> {
@@ -855,8 +1008,212 @@ public class MainActivity extends AppCompatActivity
     }
 
     // ──────────────────────────────────────────────
+    //  BANNED DEVICE BOTTOM SHEET
+    // ──────────────────────────────────────────────
+
+    private void showBannedDeviceBottomSheet(Device device) {
+        if (isFinishing()) return;
+
+        BottomSheetDialog dialog = new BottomSheetDialog(this);
+        View sheet = LayoutInflater.from(this).inflate(R.layout.bottom_sheet_banned_device, null);
+        dialog.setContentView(sheet);
+
+        TextView tvName = sheet.findViewById(R.id.tv_banned_sheet_name);
+        TextView tvIp = sheet.findViewById(R.id.tv_banned_sheet_ip);
+        TextView tvMac = sheet.findViewById(R.id.tv_banned_sheet_mac);
+        TextView tvStatus = sheet.findViewById(R.id.tv_banned_sheet_status);
+        TextView tvFirstSeen = sheet.findViewById(R.id.tv_banned_sheet_first_seen);
+        TextView tvLastSeen = sheet.findViewById(R.id.tv_banned_sheet_last_seen);
+
+        MaterialButton btnUnban = sheet.findViewById(R.id.btn_banned_sheet_unban);
+        MaterialButton btnProtect = sheet.findViewById(R.id.btn_banned_sheet_protect);
+        MaterialButton btnRename = sheet.findViewById(R.id.btn_banned_sheet_rename);
+        MaterialButton btnClose = sheet.findViewById(R.id.btn_banned_sheet_close);
+
+        View dotStatus = sheet.findViewById(R.id.dot_banned_sheet_status);
+        MaterialCardView cardStatus = sheet.findViewById(R.id.card_banned_sheet_status);
+
+        tvName.setText(device.getName());
+
+        tvIp.setText(device.getIp() != null && !device.getIp().trim().isEmpty()
+                ? device.getIp()
+                : "N/A");
+
+        tvMac.setText(device.getMac() != null && !device.getMac().trim().isEmpty()
+                ? device.getMac()
+                : "N/A");
+
+        tvStatus.setText(device.isProtected() ? "Banned • Protected" : "Banned");
+        tvStatus.setTextColor(getColor(R.color.error));
+
+        setDotColor(dotStatus, getColor(R.color.error));
+
+        cardStatus.setCardBackgroundColor(getColor(R.color.error_container));
+        cardStatus.setStrokeColor(getColor(R.color.error));
+
+        tvFirstSeen.setText(Device.formatLastSeen(device.getFirstSeen()));
+        tvLastSeen.setText(Device.formatLastSeen(device.getLastSeen()));
+
+        btnUnban.setOnClickListener(v -> {
+            dialog.dismiss();
+
+            if (!bound || service == null) return;
+
+            ioExecutor.execute(() -> {
+                service.unbanDevice(device.getMac());
+
+                mainHandler.postDelayed(() -> {
+                    if (!isFinishing()) refreshUI();
+                }, 300);
+            });
+        });
+
+        btnProtect.setText(device.isProtected() ? "Unban & Keep Protected" : "Unban & Protect");
+
+        btnProtect.setOnClickListener(v -> {
+            dialog.dismiss();
+
+            if (!bound || service == null) return;
+
+            ioExecutor.execute(() -> {
+                service.setProtected(device.getMac(), true);
+
+                mainHandler.postDelayed(() -> {
+                    if (!isFinishing()) refreshUI();
+                }, 300);
+            });
+        });
+
+        btnRename.setOnClickListener(v -> {
+            dialog.dismiss();
+            showRenameDialog(device);
+        });
+
+        btnClose.setOnClickListener(v -> dialog.dismiss());
+
+        dialog.show();
+    }
+
+    // ──────────────────────────────────────────────
+    //  PROTECTED DEVICE BOTTOM SHEET
+    // ──────────────────────────────────────────────
+
+    private void showProtectedDeviceBottomSheet(Device device) {
+        if (isFinishing()) return;
+
+        BottomSheetDialog dialog = new BottomSheetDialog(this);
+        View sheet = LayoutInflater.from(this).inflate(R.layout.bottom_sheet_protected_device, null);
+        dialog.setContentView(sheet);
+
+        TextView tvName = sheet.findViewById(R.id.tv_protected_sheet_name);
+        TextView tvIp = sheet.findViewById(R.id.tv_protected_sheet_ip);
+        TextView tvMac = sheet.findViewById(R.id.tv_protected_sheet_mac);
+        TextView tvStatus = sheet.findViewById(R.id.tv_protected_sheet_status);
+        TextView tvFirstSeen = sheet.findViewById(R.id.tv_protected_sheet_first_seen);
+        TextView tvLastSeen = sheet.findViewById(R.id.tv_protected_sheet_last_seen);
+
+        MaterialButton btnRemove = sheet.findViewById(R.id.btn_protected_sheet_remove);
+        MaterialButton btnBan = sheet.findViewById(R.id.btn_protected_sheet_ban);
+        MaterialButton btnRename = sheet.findViewById(R.id.btn_protected_sheet_rename);
+        MaterialButton btnClose = sheet.findViewById(R.id.btn_protected_sheet_close);
+
+        View dotStatus = sheet.findViewById(R.id.dot_protected_sheet_status);
+        MaterialCardView cardStatus = sheet.findViewById(R.id.card_protected_sheet_status);
+
+        tvName.setText(device.getName());
+
+        tvIp.setText(device.getIp() != null && !device.getIp().trim().isEmpty()
+                ? device.getIp()
+                : "N/A");
+
+        tvMac.setText(device.getMac() != null && !device.getMac().trim().isEmpty()
+                ? device.getMac()
+                : "N/A");
+
+        tvStatus.setText(device.isOnline() ? "Protected • Online" : "Protected");
+        tvStatus.setTextColor(getColor(R.color.success));
+
+        setDotColor(dotStatus, getColor(R.color.success));
+
+        cardStatus.setCardBackgroundColor(getColor(R.color.success_container));
+        cardStatus.setStrokeColor(getColor(R.color.success));
+
+        tvFirstSeen.setText(Device.formatLastSeen(device.getFirstSeen()));
+        tvLastSeen.setText(Device.formatLastSeen(device.getLastSeen()));
+
+        btnRemove.setOnClickListener(v -> {
+            dialog.dismiss();
+            removeProtection(device);
+        });
+
+        if (device.isBanned()) {
+            btnBan.setText("Unban Device");
+            btnBan.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.success)));
+            btnBan.setTextColor(getColor(R.color.on_success));
+
+            btnBan.setOnClickListener(v -> {
+                dialog.dismiss();
+
+                if (!bound || service == null) return;
+
+                ioExecutor.execute(() -> {
+                    service.unbanDevice(device.getMac());
+
+                    mainHandler.postDelayed(() -> {
+                        if (!isFinishing()) refreshUI();
+                    }, 300);
+                });
+            });
+        } else {
+            btnBan.setText("Unprotect & Ban");
+            btnBan.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.error)));
+            btnBan.setTextColor(getColor(R.color.on_error));
+
+            btnBan.setOnClickListener(v -> {
+                dialog.dismiss();
+
+                if (!bound || service == null) return;
+
+                ioExecutor.execute(() -> {
+                    service.unprotectAndBanDevice(device.getMac(), device.getIp());
+
+                    mainHandler.postDelayed(() -> {
+                        if (!isFinishing()) refreshUI();
+                    }, 300);
+                });
+            });
+        }
+
+        btnRename.setOnClickListener(v -> {
+            dialog.dismiss();
+            showRenameDialog(device);
+        });
+
+        btnClose.setOnClickListener(v -> dialog.dismiss());
+
+        dialog.show();
+    }
+
+    // ──────────────────────────────────────────────
+    //  PROTECTION HELPER
+    // ──────────────────────────────────────────────
+
+    private void removeProtection(Device device) {
+        if (!bound || service == null) return;
+
+        ioExecutor.execute(() -> {
+            service.setProtected(device.getMac(), false);
+
+            mainHandler.postDelayed(() -> {
+                if (!isFinishing()) refreshUI();
+            }, 300);
+        });
+    }
+
+    // ──────────────────────────────────────────────
     //  RENAME DIALOG
     // ──────────────────────────────────────────────
+
     private void showRenameDialog(Device device) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Edit Device Name");
@@ -865,15 +1222,25 @@ public class MainActivity extends AppCompatActivity
         input.setText(device.getName().equals("Unnamed") ? "" : device.getName());
         input.setTextColor(getColor(R.color.text_primary));
         input.setHintTextColor(getColor(R.color.text_tertiary));
+
         builder.setView(input);
 
         builder.setPositiveButton("Save", (dialog, which) -> {
-            if (bound && service != null) {
-                service.updateDeviceName(device.getMac(), device.getIp(), input.getText().toString());
-                refreshUI();
-            }
+            if (bound && service == null) return;
+
+            String newName = input.getText().toString();
+
+            ioExecutor.execute(() -> {
+                service.updateDeviceName(device.getMac(), device.getIp(), newName);
+
+                mainHandler.postDelayed(() -> {
+                    if (!isFinishing()) refreshUI();
+                }, 200);
+            });
         });
+
         builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+
         builder.show();
     }
 }

@@ -1029,4 +1029,46 @@ public class NetcutService extends Service {
             Log.e(TAG, "New device notification failed", e);
         }
     }
+    public List<Device> getProtectedDevices() {
+        List<Device> protectedDevices = dbHelper.getProtectedDevices();
+
+        synchronized (currentScan) {
+            for (Device d : protectedDevices) {
+                for (Device c : currentScan) {
+                    if (c.getMac() != null && c.getMac().equals(d.getMac())) {
+                        d.setOnline(true);
+
+                        if (c.getIp() != null && !c.getIp().trim().isEmpty()) {
+                            d.setIp(c.getIp());
+                        }
+
+                        if ((d.getRawName() == null || d.getRawName().trim().isEmpty())
+                                && c.getName() != null
+                                && !c.getName().trim().isEmpty()) {
+                            d.setName(c.getName());
+                        }
+
+                        break;
+                    }
+                }
+            }
+        }
+
+        return protectedDevices;
+    }
+
+    public void unprotectAndBanDevice(String mac, String ip) {
+        if (mac == null || mac.trim().isEmpty()) return;
+
+        mac = Device.normalizeMac(mac);
+
+        dbHelper.setProtected(mac, false);
+        updateDeviceProtectedStateInMemory(mac, false);
+
+        dbHelper.setBanned(mac, ip, true);
+        updateDeviceBanStateInMemory(mac, ip, true);
+
+        syncBannedDevices();
+        notifyDataChanged();
+    }
 }

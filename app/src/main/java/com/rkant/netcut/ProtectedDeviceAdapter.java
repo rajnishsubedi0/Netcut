@@ -15,19 +15,19 @@ import com.google.android.material.button.MaterialButton;
 import java.util.ArrayList;
 import java.util.List;
 
-public class BannedDeviceAdapter extends RecyclerView.Adapter<BannedDeviceAdapter.ViewHolder> {
+public class ProtectedDeviceAdapter extends RecyclerView.Adapter<ProtectedDeviceAdapter.ViewHolder> {
 
-    public interface OnBannedDeviceActionListener {
-        void onUnbanClick(Device device);
-        void onBannedDeviceClick(Device device);
+    public interface OnProtectedDeviceActionListener {
+        void onRemoveProtectionClick(Device device);
+        void onProtectedDeviceClick(Device device);
     }
 
     private List<Device> allDevices = new ArrayList<>();
     private List<Device> filteredDevices = new ArrayList<>();
     private String query = "";
-    private final OnBannedDeviceActionListener listener;
+    private final OnProtectedDeviceActionListener listener;
 
-    public BannedDeviceAdapter(List<Device> devices, OnBannedDeviceActionListener listener) {
+    public ProtectedDeviceAdapter(List<Device> devices, OnProtectedDeviceActionListener listener) {
         this.listener = listener;
         updateDevices(devices);
     }
@@ -70,7 +70,7 @@ public class BannedDeviceAdapter extends RecyclerView.Adapter<BannedDeviceAdapte
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View v = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.item_banned_device, parent, false);
+                .inflate(R.layout.item_protected_device, parent, false);
         return new ViewHolder(v);
     }
 
@@ -89,28 +89,30 @@ public class BannedDeviceAdapter extends RecyclerView.Adapter<BannedDeviceAdapte
 
         holder.tvLastSeen.setText("Last seen: " + Device.formatLastSeen(d.getLastSeen()));
 
-        holder.tvStatus.setText("BANNED");
-        holder.tvStatus.setTextColor(ContextCompat.getColor(context, R.color.error));
+        holder.tvStatus.setText("PROTECTED");
+        holder.tvStatus.setTextColor(ContextCompat.getColor(context, R.color.primary));
 
-        String displayName = d.getName() != null && !d.getName().isEmpty()
-                ? d.getName()
-                : "Unnamed Device";
-
+        String displayName = d.getName();
         if (d.isProtected()) displayName += " 🛡";
-        displayName += " 🚫";
+        if (d.isBanned()) displayName += " 🚫";
 
         holder.tvName.setText(displayName);
-        holder.tvName.setTextColor(ContextCompat.getColor(context, R.color.error));
+
+        if (d.isBanned()) {
+            holder.tvName.setTextColor(ContextCompat.getColor(context, R.color.error));
+        } else {
+            holder.tvName.setTextColor(ContextCompat.getColor(context, R.color.primary));
+        }
 
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) {
-                listener.onBannedDeviceClick(d);
+                listener.onProtectedDeviceClick(d);
             }
         });
 
-        holder.btnUnban.setOnClickListener(v -> {
+        holder.btnRemoveProtection.setOnClickListener(v -> {
             if (listener != null) {
-                listener.onUnbanClick(d);
+                listener.onRemoveProtectionClick(d);
             }
         });
     }
@@ -122,7 +124,7 @@ public class BannedDeviceAdapter extends RecyclerView.Adapter<BannedDeviceAdapte
 
     static class ViewHolder extends RecyclerView.ViewHolder {
         TextView tvName, tvIp, tvMac, tvStatus, tvLastSeen;
-        MaterialButton btnUnban;
+        MaterialButton btnRemoveProtection;
 
         ViewHolder(View v) {
             super(v);
@@ -131,7 +133,7 @@ public class BannedDeviceAdapter extends RecyclerView.Adapter<BannedDeviceAdapte
             tvMac = v.findViewById(R.id.tv_mac);
             tvStatus = v.findViewById(R.id.tv_status);
             tvLastSeen = v.findViewById(R.id.tv_last_seen);
-            btnUnban = v.findViewById(R.id.btn_unban);
+            btnRemoveProtection = v.findViewById(R.id.btn_remove_protection);
         }
     }
 }

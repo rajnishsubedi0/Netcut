@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/banned_item_root"
+    android:id="@+id/protected_item_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -51,7 +51,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:textSize="13sp"
-                    android:textColor="@color/text_primary"
+                    android:textColor="@color/primary"
                     android:layout_marginStart="8dp"
                     android:maxLines="1"
                     android:ellipsize="end" />
@@ -72,7 +72,7 @@
                     android:textSize="10sp"
                     android:textStyle="bold"
                     android:letterSpacing="0.08"
-                    android:textColor="@color/error" />
+                    android:textColor="@color/primary" />
 
                 <TextView
                     android:id="@+id/tv_mac"
@@ -99,19 +99,19 @@
                 android:ellipsize="end" />
         </LinearLayout>
 
-        <!-- Quick Unban button -->
+        <!-- Direct Remove Protection button -->
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_unban"
+            android:id="@+id/btn_remove_protection"
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="wrap_content"
             android:layout_height="34dp"
-            android:minWidth="64dp"
-            android:text="Unban"
+            android:minWidth="72dp"
+            android:text="Remove"
             android:textAllCaps="false"
             android:textSize="11sp"
             android:textStyle="bold"
-            android:textColor="@color/success"
-            app:backgroundTint="@color/success_container"
+            android:textColor="@color/text_primary"
+            app:backgroundTint="@color/surface_variant"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
             app:cornerRadius="9dp" />

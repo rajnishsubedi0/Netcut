@@ -273,4 +273,27 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
             return c.moveToFirst();
         }
     }
+    public synchronized List<Device> getProtectedDevices() {
+        List<Device> list = new ArrayList<>();
+        SQLiteDatabase db = getReadableDatabase();
+
+        try (Cursor c = db.query(
+                TABLE,
+                null,
+                COL_PROTECTED + "=?",
+                new String[]{"1"},
+                null,
+                null,
+                COL_LAST_SEEN + " DESC")) {
+
+            while (c.moveToNext()) {
+                Device d = cursorToDevice(c);
+                d.setOnline(false);
+                list.add(d);
+            }
+        } catch (Exception ignored) {
+        }
+
+        return list;
+    }
 }

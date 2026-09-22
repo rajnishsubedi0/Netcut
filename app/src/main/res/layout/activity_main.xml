@@ -154,6 +154,7 @@
     </com.google.android.material.card.MaterialCardView>
 
     <!-- ============ SEARCH + TABS ============ -->
+    <!-- ============ SEARCH + TABS ============ -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -164,37 +165,91 @@
         android:paddingTop="10dp"
         android:paddingBottom="6dp">
 
-        <com.google.android.material.textfield.TextInputLayout
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:hint="Search devices"
-            android:textColorHint="@color/text_tertiary"
-            app:hintTextColor="@color/primary"
-            app:boxBackgroundColor="@color/surface_variant"
-            app:boxStrokeColor="@color/primary"
-            app:boxStrokeWidth="1dp"
-            app:boxStrokeWidthFocused="2dp"
-            app:boxCornerRadiusTopStart="12dp"
-            app:boxCornerRadiusTopEnd="12dp"
-            app:boxCornerRadiusBottomStart="12dp"
-            app:boxCornerRadiusBottomEnd="12dp"
-            app:startIconDrawable="@drawable/ic_search"
-            app:startIconTint="@color/text_tertiary"
-            app:endIconMode="clear_text"
-            app:endIconTint="@color/text_secondary">
+            android:layout_marginBottom="8dp">
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/et_search"
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/search_container"
                 android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:textSize="13sp"
-                android:textColor="@color/text_primary"
-                android:singleLine="true"
-                android:inputType="text"
-                android:imeOptions="actionSearch" />
-        </com.google.android.material.textfield.TextInputLayout>
+                android:layout_height="wrap_content"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:hint="Search devices"
+                android:textColorHint="@color/text_tertiary"
+                app:hintTextColor="@color/primary"
+                app:boxBackgroundColor="@color/surface_variant"
+                app:boxStrokeColor="@color/primary"
+                app:boxStrokeWidth="1dp"
+                app:boxStrokeWidthFocused="2dp"
+                app:boxCornerRadiusTopStart="12dp"
+                app:boxCornerRadiusTopEnd="12dp"
+                app:boxCornerRadiusBottomStart="12dp"
+                app:boxCornerRadiusBottomEnd="12dp"
+                app:startIconDrawable="@drawable/ic_search"
+                app:startIconTint="@color/text_tertiary"
+                app:endIconMode="clear_text"
+                app:endIconTint="@color/text_secondary">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/et_search"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:textSize="13sp"
+                    android:textColor="@color/text_primary"
+                    android:singleLine="true"
+                    android:inputType="text"
+                    android:imeOptions="actionSearch" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <LinearLayout
+                android:id="@+id/ll_selection_actions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:visibility="gone"
+                android:layout_gravity="center_vertical">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_ban_selected"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="0dp"
+                    android:layout_height="38dp"
+                    android:layout_weight="1"
+                    android:text="Ban (0)"
+                    android:textSize="12sp"
+                    android:textColor="@color/error"
+                    app:backgroundTint="@color/error_container"
+                    app:cornerRadius="10dp"
+                    android:layout_marginEnd="4dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_unban_selected"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="0dp"
+                    android:layout_height="38dp"
+                    android:layout_weight="1"
+                    android:text="Unban (0)"
+                    android:textSize="12sp"
+                    android:textColor="@color/success"
+                    app:backgroundTint="@color/success_container"
+                    app:cornerRadius="10dp"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginEnd="4dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_clear_selection"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="0dp"
+                    android:layout_height="38dp"
+                    android:layout_weight="0.8"
+                    android:text="Clear"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_secondary"
+                    app:cornerRadius="10dp"
+                    android:layout_marginStart="4dp" />
+            </LinearLayout>
+        </FrameLayout>
 
         <com.google.android.material.button.MaterialButtonToggleGroup
             android:id="@+id/toggle_group"
@@ -212,7 +267,7 @@
                 android:layout_height="36dp"
                 android:layout_weight="1"
                 android:text="Connected"
-                android:textSize="12sp"
+                android:textSize="11sp"
                 android:textStyle="bold"
                 android:textColor="@color/tab_selected_text"
                 app:backgroundTint="@color/tab_selected_bg"
@@ -226,7 +281,21 @@
                 android:layout_height="36dp"
                 android:layout_weight="1"
                 android:text="Banned"
-                android:textSize="12sp"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="@color/tab_unselected_text"
+                app:backgroundTint="@android:color/transparent"
+                app:strokeColor="@android:color/transparent"
+                app:cornerRadius="9dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_tab_protected"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:text="Protected"
+                android:textSize="11sp"
                 android:textStyle="bold"
                 android:textColor="@color/tab_unselected_text"
                 app:backgroundTint="@android:color/transparent"
@@ -235,56 +304,6 @@
         </com.google.android.material.button.MaterialButtonToggleGroup>
     </LinearLayout>
 
-    <!-- ============ SELECTION ACTIONS (shown on long-press / checkbox) ============ -->
-    <LinearLayout
-        android:id="@+id/ll_selection_actions"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:visibility="gone"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:paddingBottom="6dp">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_ban_selected"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="0dp"
-            android:layout_height="38dp"
-            android:layout_weight="1"
-            android:text="Ban (0)"
-            android:textSize="12sp"
-            android:textColor="@color/error"
-            app:backgroundTint="@color/error_container"
-            app:cornerRadius="10dp"
-            android:layout_marginEnd="4dp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_unban_selected"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="0dp"
-            android:layout_height="38dp"
-            android:layout_weight="1"
-            android:text="Unban (0)"
-            android:textSize="12sp"
-            android:textColor="@color/success"
-            app:backgroundTint="@color/success_container"
-            app:cornerRadius="10dp"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_clear_selection"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="0dp"
-            android:layout_height="38dp"
-            android:layout_weight="0.8"
-            android:text="Clear"
-            android:textSize="12sp"
-            android:textColor="@color/text_secondary"
-            app:cornerRadius="10dp"
-            android:layout_marginStart="4dp" />
-    </LinearLayout>
 
     <!-- ============ DEVICE LIST ============ -->
     <FrameLayout
@@ -318,8 +337,18 @@
             android:clipToPadding="false"
             android:paddingBottom="8dp"
             android:scrollbars="vertical" />
-    </FrameLayout>
 
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_protected"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/background"
+            android:nestedScrollingEnabled="true"
+            android:visibility="gone"
+            android:clipToPadding="false"
+            android:paddingBottom="8dp"
+            android:scrollbars="vertical" />
+    </FrameLayout>
     <!-- ============ BOTTOM ACTION BAR (counts · restore all · ban all) ============ -->
     <LinearLayout
         android:layout_width="match_parent"
