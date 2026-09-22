@@ -1,56 +1,89 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Primary Colors -->
+    <!-- ===== BASE ===== -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    
-    <!-- Modern Gradient Palette -->
-    <color name="primary">#6366F1</color>
-    <color name="primary_dark">#4F46E5</color>
-    <color name="primary_light">#A5B4FC</color>
-    
-    <color name="secondary">#EC4899</color>
-    <color name="secondary_dark">#DB2777</color>
-    <color name="secondary_light">#FBCFE8</color>
-    
-    <color name="accent">#06B6D4</color>
-    <color name="accent_dark">#0891B2</color>
-    
-    <!-- Background Colors -->
-    <color name="background">#FAFAFA</color>
-    <color name="surface">#FFFFFF</color>
-    <color name="surface_variant">#F8FAFC</color>
-    
-    <!-- Text Colors -->
-    <color name="on_primary">#FFFFFF</color>
-    <color name="on_secondary">#FFFFFF</color>
-    <color name="on_background">#1E293B</color>
-    <color name="on_surface">#334155</color>
-    <color name="on_surface_variant">#64748B</color>
-    
-    <!-- Status Colors -->
-    <color name="success">#10B981</color>
-    <color name="success_light">#D1FAE5</color>
-    <color name="error">#EF4444</color>
-    <color name="error_light">#FEE2E2</color>
-    <color name="warning">#F59E0B</color>
-    <color name="warning_light">#FEF3C7</color>
-    <color name="info">#3B82F6</color>
-    <color name="info_light">#DBEAFE</color>
-    
-    <!-- Gray Scale -->
-    <color name="gray_50">#F9FAFB</color>
-    <color name="gray_100">#F3F4F6</color>
-    <color name="gray_200">#E5E7EB</color>
-    <color name="gray_300">#D1D5DB</color>
-    <color name="gray_400">#9CA3AF</color>
-    <color name="gray_500">#6B7280</color>
-    <color name="gray_600">#4B5563</color>
-    <color name="gray_700">#374151</color>
-    <color name="gray_800">#1F2937</color>
-    <color name="gray_900">#111827</color>
-    
-    <!-- Legacy support -->
-    <color name="gray">#6B7280</color>
-    <color name="green_teal">#10B981</color>
+
+    <!-- ===== APP BACKGROUND & SURFACES ===== -->
+    <color name="background">#0B0F19</color>
+    <color name="surface">#151B2B</color>
+    <color name="surface_variant">#1F273D</color>
+    <color name="surface_elevated">#242E45</color>
+    <color name="border">#2A344D</color>
+
+    <!-- ===== TEXT ===== -->
+    <color name="text_primary">#F1F5F9</color>
+    <color name="text_secondary">#94A3B8</color>
+    <color name="text_tertiary">#64748B</color>
+
+    <!-- ===== MATERIAL THEME ALIASES ===== -->
+    <color name="on_primary">#0B0F19</color>
+    <color name="on_secondary">#0B0F19</color>
+    <color name="on_background">#F1F5F9</color>
+    <color name="on_surface">#F1F5F9</color>
+    <color name="on_surface_variant">#94A3B8</color>
+
+    <!-- ===== BRAND / ACCENT ===== -->
+    <color name="primary">#38BDF8</color>
+    <color name="primary_variant">#0EA5E9</color>
+    <color name="primary_container">#16324A</color>
+    <color name="on_primary_container">#38BDF8</color>
+    <color name="secondary">#818CF8</color>
+    <color name="secondary_variant">#6366F1</color>
+
+    <!-- ===== SEMANTIC / STATUS (Fixes Java errors) ===== -->
+    <color name="success">#34D399</color>
+    <color name="success_container">#1A2E25</color>
+    <color name="on_success">#0B0F19</color>
+
+    <color name="error">#F87171</color>
+    <color name="error_container">#2A1B24</color>
+    <color name="on_error">#0B0F19</color>
+
+    <color name="warning">#FBBF24</color>
+    <color name="warning_container">#2E2510</color>
+
+    <color name="info">#60A5FA</color>
+    <color name="info_container">#1A2540</color>
+
+    <!-- ===== TAB STATES ===== -->
+    <color name="tab_selected_bg">#38BDF8</color>
+    <color name="tab_selected_text">#0B0F19</color>
+    <color name="tab_unselected_bg">#1F273D</color>
+    <color name="tab_unselected_text">#94A3B8</color>
+
+    <!-- ===== SERVICE STATUS ===== -->
+    <color name="status_running">#34D399</color>
+    <color name="status_stopped">#64748B</color>
+    <color name="status_running_bg">#132B22</color>
+    <color name="status_stopped_bg">#151B2B</color>
+
+    <!-- ===== START / STOP BUTTON ===== -->
+    <color name="btn_start_bg">#38BDF8</color>
+    <color name="btn_start_text">#0B0F19</color>
+    <color name="btn_stop_bg">#F87171</color>
+    <color name="btn_stop_text">#0B0F19</color>
+
+    <!-- ===== RIPPLE / OVERLAY / DIVIDER ===== -->
+    <color name="ripple">#1A38BDF8</color>
+    <color name="scrim">#80000000</color>
+    <color name="divider">#2A344D</color>
+
+    <!-- ===== LEGACY / DRAWABLE COMPATIBILITY (Fixes XML errors) ===== -->
+    <!-- Mapped to dark-friendly values so old drawables don't render as blinding white boxes -->
+    <color name="gray">#64748B</color>
+    <color name="green_teal">#34D399</color>
+    <color name="gray_100">#1F273D</color>
+    <color name="gray_200">#2A344D</color>
+    <color name="gray_300">#475569</color>
+    <color name="gray_400">#94A3B8</color>
+    <color name="gray_500">#64748B</color>
+
+    <color name="primary_light">#38BDF8</color>
+    <color name="info_light">#1A2540</color>
+    <color name="warning_light">#2E2510</color>
+
+    <color name="success_light">#1A2E25</color>
+    <color name="success_dark">#34D399</color>
+    <color name="error_light">#2A1B24</color>
 </resources>

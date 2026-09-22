@@ -3,40 +3,39 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:layout_marginBottom="8dp"
     app:cardBackgroundColor="@color/surface"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="2dp"
+    app:cardCornerRadius="14dp"
+    app:cardElevation="0dp"
     app:strokeWidth="1dp"
-    app:strokeColor="@color/error_light"
-    android:layout_marginBottom="10dp">
+    app:strokeColor="@color/error_light">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="14dp">
 
-        <!-- Header Row -->
+        <!-- Top row: dot + name + BANNED badge -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
             android:gravity="center_vertical">
 
             <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
                 android:src="@drawable/ic_status_dot_red"
                 android:scaleType="fitCenter"
-                android:layout_marginEnd="8dp" />
+                android:layout_marginEnd="7dp" />
 
             <TextView
                 android:id="@+id/tv_name"
                 android:layout_width="0dp"
-                android:layout_weight="1"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
                 android:text="Unnamed"
-                android:textSize="17sp"
+                android:textSize="16sp"
                 android:textStyle="bold"
                 android:textColor="@color/error"
                 android:fontFamily="sans-serif-medium"
@@ -47,77 +46,67 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="BANNED"
-                android:textSize="12sp"
+                android:textSize="10sp"
                 android:textStyle="bold"
                 android:textColor="@color/error"
                 android:background="@drawable/bg_service_not_running"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
                 android:paddingTop="4dp"
                 android:paddingBottom="4dp" />
-
         </LinearLayout>
 
-        <!-- IP and MAC addresses -->
+        <!-- Details -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="10dp">
+            android:orientation="vertical"
+            android:layout_marginStart="25dp"
+            android:layout_marginTop="8dp">
 
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_weight="1"
+            <TextView
+                android:id="@+id/tv_ip"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:text="IP: 192.168.1.1"
+                android:textSize="13sp"
+                android:textColor="@color/on_surface_variant"
+                android:fontFamily="monospace" />
 
-                <TextView
-                    android:id="@+id/tv_ip"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="IP: 192.168.1.1"
-                    android:textSize="14sp"
-                    android:textColor="@color/on_surface_variant"
-                    android:fontFamily="monospace" />
-
-                <TextView
-                    android:id="@+id/tv_mac"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="MAC: AA:BB:CC:DD:EE:FF"
-                    android:textSize="13sp"
-                    android:textColor="@color/on_surface_variant"
-                    android:fontFamily="monospace"
-                    android:layout_marginTop="4dp" />
-
-            </LinearLayout>
+            <TextView
+                android:id="@+id/tv_mac"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MAC: AA:BB:CC:DD:EE:FF"
+                android:textSize="12sp"
+                android:textColor="@color/on_surface_variant"
+                android:fontFamily="monospace"
+                android:layout_marginTop="3dp" />
 
             <TextView
                 android:id="@+id/tv_last_seen"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Last seen: Never"
-                android:textSize="12sp"
+                android:textSize="11sp"
                 android:textColor="@color/gray_400"
-                android:gravity="end"
-                android:layout_marginStart="8dp" />
-
+                android:layout_marginTop="3dp" />
         </LinearLayout>
 
-        <!-- Unban Button -->
+        <!-- THIS is the missing ID -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_unban"
             style="@style/Widget.Material3.Button"
             android:layout_width="match_parent"
-            android:layout_height="44dp"
+            android:layout_height="40dp"
             android:text="Unban Device"
             android:textAllCaps="false"
-            android:textSize="15sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             app:backgroundTint="@color/success"
-            app:cornerRadius="12dp"
-            android:layout_marginTop="14dp" />
+            app:cornerRadius="10dp"
+            android:layout_marginStart="25dp"
+            android:layout_marginTop="10dp" />
 
     </LinearLayout>
-
 </com.google.android.material.card.MaterialCardView>

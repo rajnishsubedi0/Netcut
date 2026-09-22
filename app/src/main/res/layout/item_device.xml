@@ -1,159 +1,143 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    app:cardBackgroundColor="@color/surface"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="2dp"
-    app:strokeWidth="0dp"
-    android:layout_marginBottom="10dp">
+    android:orientation="vertical"
+    android:background="@color/background"
+    android:foreground="?attr/selectableItemBackground">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="8dp"
+        android:paddingEnd="6dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp">
 
-        <!-- Top Row: Checkbox, Name, Status -->
-        <LinearLayout
-            android:layout_width="match_parent"
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/cb_select"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            app:buttonTint="@color/primary" />
 
-            <com.google.android.material.checkbox.MaterialCheckBox
-                android:id="@+id/cb_select"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:minWidth="0dp"
-                android:minHeight="0dp" />
-
-            <TextView
-                android:id="@+id/tv_name"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:text="Unnamed"
-                android:textSize="17sp"
-                android:textStyle="bold"
-                android:textColor="@color/on_surface"
-                android:fontFamily="sans-serif-medium"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:layout_marginStart="4dp" />
-
-            <TextView
-                android:id="@+id/tv_status"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Online"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:textColor="@color/success"
-                android:background="@drawable/bg_service_running"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp" />
-
-        </LinearLayout>
-
-        <!-- IP and MAC addresses -->
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="10dp">
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="2dp">
 
+            <!-- Line 1: BIG IP + NAME (WiFiKill style) -->
             <LinearLayout
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
 
                 <TextView
                     android:id="@+id/tv_ip"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="IP: 192.168.1.1"
-                    android:textSize="14sp"
-                    android:textColor="@color/on_surface_variant"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"
                     android:fontFamily="monospace" />
 
                 <TextView
-                    android:id="@+id/tv_mac"
-                    android:layout_width="wrap_content"
+                    android:id="@+id/tv_name"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="MAC: AA:BB:CC:DD:EE:FF"
+                    android:layout_weight="1"
                     android:textSize="13sp"
-                    android:textColor="@color/on_surface_variant"
-                    android:fontFamily="monospace"
-                    android:layout_marginTop="4dp" />
-
+                    android:textColor="@color/primary"
+                    android:layout_marginStart="8dp"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
             </LinearLayout>
 
+            <!-- Line 2: STATUS + MAC -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="3dp">
+
+                <TextView
+                    android:id="@+id/tv_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.08"
+                    android:textColor="@color/success" />
+
+                <TextView
+                    android:id="@+id/tv_mac"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textSize="11sp"
+                    android:textColor="@color/text_tertiary"
+                    android:fontFamily="monospace"
+                    android:layout_marginStart="8dp"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+            </LinearLayout>
+
+            <!-- Line 3: last seen (like vendor line) -->
             <TextView
                 android:id="@+id/tv_last_seen"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Last seen: Never"
-                android:textSize="12sp"
-                android:textColor="@color/gray_400"
-                android:gravity="end"
-                android:layout_marginStart="8dp" />
-
+                android:textSize="11sp"
+                android:textColor="@color/text_tertiary"
+                android:layout_marginTop="2dp"
+                android:maxLines="1"
+                android:ellipsize="end" />
         </LinearLayout>
 
-        <!-- Action Buttons -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="14dp">
+        <!-- Row actions -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_ping"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:contentDescription="Ping"
+            app:icon="@drawable/ic_ping"
+            app:iconSize="18dp"
+            app:iconTint="@color/text_secondary" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_ping"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:text="Ping"
-                android:textAllCaps="false"
-                android:textSize="13sp"
-                app:backgroundTint="@color/gray_100"
-                app:cornerRadius="10dp"
-                android:layout_marginEnd="6dp" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_ban"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="34dp"
+            android:minWidth="64dp"
+            android:text="Ban"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            app:cornerRadius="8dp" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_details"
-                style="@style/Widget.Material3.Button"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:text="Details"
-                android:textAllCaps="false"
-                android:textSize="13sp"
-                app:backgroundTint="@color/primary"
-                app:cornerRadius="10dp"
-                android:layout_marginStart="6dp"
-                android:layout_marginEnd="6dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_ban"
-                style="@style/Widget.Material3.Button"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:text="Ban"
-                android:textAllCaps="false"
-                android:textSize="13sp"
-                app:backgroundTint="@color/error"
-                app:cornerRadius="10dp"
-                android:layout_marginStart="6dp" />
-
-        </LinearLayout>
-
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_details"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:contentDescription="Details"
+            app:icon="@drawable/ic_info"
+            app:iconSize="18dp"
+            app:iconTint="@color/text_secondary" />
     </LinearLayout>
 
-</com.google.android.material.card.MaterialCardView>
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginStart="14dp"
+        android:background="@color/divider" />
+</LinearLayout>

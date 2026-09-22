@@ -1,29 +1,45 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
     <style name="Base.Theme.Netcut" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Primary brand color -->
         <item name="colorPrimary">@color/primary</item>
-        <item name="colorPrimaryVariant">@color/primary_dark</item>
+        <item name="colorPrimaryVariant">@color/primary_variant</item>
         <item name="colorOnPrimary">@color/on_primary</item>
-        
-        <!-- Secondary brand color -->
         <item name="colorSecondary">@color/secondary</item>
-        <item name="colorSecondaryVariant">@color/secondary_dark</item>
+        <item name="colorSecondaryVariant">@color/secondary_variant</item>
         <item name="colorOnSecondary">@color/on_secondary</item>
-        
-        <!-- Status bar color -->
-        <item name="android:statusBarColor">@color/primary_dark</item>
-        
-        <!-- Background colors -->
+
         <item name="android:colorBackground">@color/background</item>
         <item name="colorSurface">@color/surface</item>
         <item name="colorOnSurface">@color/on_surface</item>
         <item name="colorOnSurfaceVariant">@color/on_surface_variant</item>
-        
-        <!-- Error color -->
+        <item name="colorSurfaceVariant">@color/surface_variant</item>
+
         <item name="colorError">@color/error</item>
         <item name="colorOnError">@color/white</item>
+
+        <!-- Force Dark Status Bar Icons -->
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:navigationBarColor">@color/background</item>
+        <item name="android:windowLightStatusBar">false</item>
+
+        <item name="materialButtonStyle">@style/Widget.Netcut.Button</item>
+        <item name="materialButtonOutlinedStyle">@style/Widget.Netcut.Button.Outlined</item>
+        <item name="materialButtonTonalStyle">@style/Widget.Netcut.Button.Tonal</item>
     </style>
 
     <style name="Theme.Netcut" parent="Base.Theme.Netcut" />
+
+    <style name="Widget.Netcut.Button" parent="Widget.Material3.Button">
+        <item name="cornerRadius">12dp</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+
+    <style name="Widget.Netcut.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="cornerRadius">12dp</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+
+    <style name="Widget.Netcut.Button.Tonal" parent="Widget.Material3.Button.TonalButton">
+        <item name="cornerRadius">12dp</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
 </resources>
