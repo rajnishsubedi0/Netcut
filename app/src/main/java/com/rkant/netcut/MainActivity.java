@@ -26,6 +26,7 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.activity.OnBackPressedCallback;
 
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
@@ -64,6 +65,7 @@ public class MainActivity extends AppCompatActivity
     private static final long BATTERY_PROMPT_COOLDOWN_MS = 24 * 60 * 60 * 1000L;
 
     private static boolean batteryWarningShownThisSession = false;
+    private OnBackPressedCallback selectionBackCallback;
 
     private NetcutService service;
     private boolean bound = false;
@@ -154,7 +156,7 @@ public class MainActivity extends AppCompatActivity
         swipeRefresh.setDistanceToTriggerSync(550);
         swipeRefresh.setColorSchemeColors(getColor(R.color.primary));
         swipeRefresh.setProgressBackgroundColorSchemeColor(getColor(R.color.surface));
-        swipeRefresh.setOnRefreshListener(this::triggerScan);
+        swipeRefresh.setOnRefreshListener(() -> triggerScan(false));
 
         rvConnected.setLayoutManager(new LinearLayoutManager(this));
         rvBanned.setLayoutManager(new LinearLayoutManager(this));
@@ -163,6 +165,18 @@ public class MainActivity extends AppCompatActivity
         bannedAdapter = new BannedDeviceAdapter(new ArrayList<>(), this);
         rvConnected.setAdapter(connectedAdapter);
         rvBanned.setAdapter(bannedAdapter);
+
+        selectionBackCallback = new OnBackPressedCallback(false) {
+            @Override
+            public void handleOnBackPressed() {
+                if (connectedAdapter != null && connectedAdapter.isSelectionActive()) {
+                    connectedAdapter.clearSelection();
+                    refreshUI();
+                }
+                setEnabled(false);
+            }
+        };
+        getOnBackPressedDispatcher().addCallback(this, selectionBackCallback);
 
         btnStart.setOnClickListener(v -> toggleService());
         btnBanAll.setOnClickListener(v -> confirmBanAll());
@@ -251,16 +265,36 @@ public class MainActivity extends AppCompatActivity
     // ──────────────────────────────────────────────
     //  NEW: SCAN TRIGGER + OVERFLOW MENU + LOADER
     // ──────────────────────────────────────────────
-    private void triggerScan() {
+    private void triggerScan(boolean showScanToast) {
         if (bound && service != null && service.isEngineRunning()) {
-            Toast.makeText(this, "Scanning network...", Toast.LENGTH_SHORT).show();
-            if (scanProgress != null) scanProgress.setVisibility(View.VISIBLE);
+            if (showScanToast) {
+                Toast.makeText(this, "Scanning network...", Toast.LENGTH_SHORT).show();
+            }
+
+            if (scanProgress != null) {
+                scanProgress.setVisibility(View.VISIBLE);
+            }
+
             service.forceScan();
         } else if (bound && service != null && service.isManualModeActive()) {
-            Toast.makeText(this, "Waiting for WiFi...", Toast.LENGTH_SHORT).show();
+            if (showScanToast) {
+                Toast.makeText(this, "Waiting for WiFi...", Toast.LENGTH_SHORT).show();
+            }
+
+            if (scanProgress != null) {
+                scanProgress.setVisibility(View.GONE);
+            }
+
             swipeRefresh.setRefreshing(false);
         } else {
-            Toast.makeText(this, "Service is not running. Start it first.", Toast.LENGTH_SHORT).show();
+            if (showScanToast) {
+                Toast.makeText(this, "Service is not running. Start it first.", Toast.LENGTH_SHORT).show();
+            }
+
+            if (scanProgress != null) {
+                scanProgress.setVisibility(View.GONE);
+            }
+
             swipeRefresh.setRefreshing(false);
         }
     }
@@ -274,7 +308,7 @@ public class MainActivity extends AppCompatActivity
                 startActivity(new Intent(this, SettingsActivity.class));
                 return true;
             } else if (id == R.id.menu_scan) {
-                triggerScan();
+                triggerScan(true);
                 return true;
             }
             return false;
@@ -612,7 +646,13 @@ public class MainActivity extends AppCompatActivity
 
     private void updateSelectionBar() {
         if (connectedAdapter == null || llSelectionActions == null) return;
+
         int selected = connectedAdapter.getSelectedItemCount();
+
+        if (selectionBackCallback != null) {
+            selectionBackCallback.setEnabled(selected > 0);
+        }
+
         if (selected > 0) {
             llSelectionActions.setVisibility(View.VISIBLE);
             btnBanSelected.setText("Ban (" + selected + ")");

@@ -4,19 +4,19 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingStart="24dp"
-    android:paddingTop="16dp"
-    android:paddingEnd="24dp"
-    android:paddingBottom="28dp"
-    android:background="@color/surface">
+    android:background="@color/surface"
+    android:paddingStart="20dp"
+    android:paddingTop="14dp"
+    android:paddingEnd="20dp"
+    android:paddingBottom="26dp">
 
     <!-- Drag Handle -->
     <View
-        android:layout_width="40dp"
+        android:layout_width="42dp"
         android:layout_height="4dp"
-        android:background="@color/border"
         android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="24dp" />
+        android:background="@color/border"
+        android:layout_marginBottom="18dp" />
 
     <!-- Device Name -->
     <TextView
@@ -24,28 +24,30 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Device Name"
-        android:textSize="28sp"
+        android:textSize="22sp"
         android:textStyle="bold"
         android:textColor="@color/text_primary"
-        android:fontFamily="sans-serif-black"
+        android:fontFamily="sans-serif"
         android:ellipsize="end"
         android:maxLines="1"
-        android:layout_marginBottom="20dp" />
+        android:layout_marginBottom="18dp" />
 
     <!-- Network Info Card -->
     <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="14dp"
-        app:cardBackgroundColor="@color/surface_variant"
-        app:cardCornerRadius="20dp"
-        app:cardElevation="0dp">
+        android:layout_marginBottom="12dp"
+        app:cardBackgroundColor="@color/surface"
+        app:cardCornerRadius="18dp"
+        app:cardElevation="0dp"
+        app:strokeWidth="1dp"
+        app:strokeColor="@color/border">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="20dp">
+            android:padding="18dp">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -54,7 +56,7 @@
                 android:textSize="11sp"
                 android:textStyle="bold"
                 android:textColor="@color/text_tertiary"
-                android:letterSpacing="0.1" />
+                android:letterSpacing="0.08" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -69,10 +71,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="192.168.1.1"
-                android:textSize="18sp"
+                android:textSize="16sp"
+                android:textStyle="bold"
                 android:textColor="@color/text_primary"
                 android:fontFamily="monospace"
-                android:textStyle="bold"
                 android:layout_marginTop="4dp" />
 
             <View
@@ -94,10 +96,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="AA:BB:CC:DD:EE:FF"
-                android:textSize="16sp"
+                android:textSize="15sp"
+                android:textStyle="bold"
                 android:textColor="@color/text_primary"
                 android:fontFamily="monospace"
-                android:textStyle="bold"
                 android:layout_marginTop="4dp" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
@@ -107,7 +109,7 @@
         android:id="@+id/card_sheet_status"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="14dp"
+        android:layout_marginBottom="12dp"
         app:cardBackgroundColor="@color/success_container"
         app:cardCornerRadius="16dp"
         app:cardElevation="0dp"
@@ -117,8 +119,9 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:padding="16dp">
+            android:padding="14dp">
 
             <View
                 android:id="@+id/dot_sheet_status"
@@ -132,19 +135,19 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Online"
-                android:textSize="15sp"
+                android:textSize="14sp"
                 android:textStyle="bold"
                 android:textColor="@color/success"
                 android:layout_marginStart="12dp" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- First / Last Seen -->
+    <!-- First Seen / Last Seen -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginBottom="24dp">
+        android:layout_marginBottom="20dp">
 
         <com.google.android.material.card.MaterialCardView
             android:layout_width="0dp"
@@ -159,7 +162,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="14dp">
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -176,8 +179,8 @@
                     android:layout_height="wrap_content"
                     android:text="Never"
                     android:textSize="14sp"
-                    android:textColor="@color/text_primary"
                     android:textStyle="bold"
+                    android:textColor="@color/text_primary"
                     android:layout_marginTop="6dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -195,7 +198,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="14dp">
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -212,8 +215,8 @@
                     android:layout_height="wrap_content"
                     android:text="Never"
                     android:textSize="14sp"
-                    android:textColor="@color/text_primary"
                     android:textStyle="bold"
+                    android:textColor="@color/text_primary"
                     android:layout_marginTop="6dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -224,14 +227,14 @@
         android:id="@+id/btn_sheet_ban"
         style="@style/Widget.Material3.Button"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="52dp"
         android:text="Ban Device"
         android:textAllCaps="false"
-        android:textSize="16sp"
+        android:textSize="15sp"
         android:textStyle="bold"
         android:textColor="@color/on_error"
         app:backgroundTint="@color/error"
-        app:cornerRadius="16dp"
+        app:cornerRadius="14dp"
         android:layout_marginBottom="8dp" />
 
     <!-- Action: Protect -->
@@ -239,48 +242,49 @@
         android:id="@+id/btn_sheet_protect"
         style="@style/Widget.Material3.Button"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="52dp"
         android:text="Protect Device"
         android:textAllCaps="false"
-        android:textSize="16sp"
+        android:textSize="15sp"
         android:textStyle="bold"
         android:textColor="@color/on_primary"
         app:backgroundTint="@color/primary"
-        app:cornerRadius="16dp"
-        android:layout_marginBottom="14dp" />
+        app:cornerRadius="14dp"
+        android:layout_marginBottom="12dp" />
 
     <!-- Action: Ping + Rename -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:orientation="horizontal"
         android:layout_marginBottom="8dp">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_sheet_ping"
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="0dp"
-            android:layout_height="50dp"
+            android:layout_height="48dp"
             android:layout_weight="1"
             android:text="Ping"
             android:textAllCaps="false"
             android:textSize="14sp"
             android:textColor="@color/primary"
             app:backgroundTint="@color/surface_variant"
-            app:cornerRadius="14dp"
+            app:cornerRadius="12dp"
             android:layout_marginEnd="5dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_sheet_rename"
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="0dp"
-            android:layout_height="50dp"
+            android:layout_height="48dp"
             android:layout_weight="1"
             android:text="Rename"
             android:textAllCaps="false"
             android:textSize="14sp"
             android:textColor="@color/text_primary"
             app:backgroundTint="@color/surface_variant"
-            app:cornerRadius="14dp"
+            app:cornerRadius="12dp"
             android:layout_marginStart="5dp" />
     </LinearLayout>
 
@@ -289,9 +293,9 @@
         android:id="@+id/btn_sheet_close"
         style="@style/Widget.Material3.Button.TextButton"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="46dp"
         android:text="Close"
         android:textAllCaps="false"
-        android:textSize="15sp"
+        android:textSize="14sp"
         android:textColor="@color/text_secondary" />
 </LinearLayout>

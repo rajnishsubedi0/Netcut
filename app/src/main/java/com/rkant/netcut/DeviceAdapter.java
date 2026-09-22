@@ -1,5 +1,6 @@
 package com.rkant.netcut;
 
+import android.content.Context;
 import android.content.res.ColorStateList;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -11,7 +12,6 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.checkbox.MaterialCheckBox;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -46,7 +46,9 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
 
         Set<String> validMacs = new HashSet<>();
         for (Device d : allDevices) {
-            if (d.getMac() != null) validMacs.add(d.getMac());
+            if (d.getMac() != null && !d.getMac().isEmpty()) {
+                validMacs.add(d.getMac());
+            }
         }
         selectedMacs.retainAll(validMacs);
         applyFilter();
@@ -64,7 +66,7 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
                 filteredDevices.add(d);
                 continue;
             }
-            // Null safety checks to prevent crashes
+
             String name = d.getName() == null ? "" : d.getName().toLowerCase();
             String ip = d.getIp() == null ? "" : d.getIp().toLowerCase();
             String mac = d.getMac() == null ? "" : d.getMac().toLowerCase();
@@ -78,6 +80,7 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
 
     public void toggleSelection(String mac) {
         if (mac == null || mac.isEmpty()) return;
+
         if (selectedMacs.contains(mac)) {
             selectedMacs.remove(mac);
         } else {
@@ -123,54 +126,59 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         Device d = filteredDevices.get(position);
-        View contextView = holder.itemView;
+        final Context context = holder.itemView.getContext();
+        final String mac = d.getMac() == null ? "" : d.getMac();
 
-        // Text setup with null safety
-        holder.tvIp.setText("IP: " + (d.getIp() != null ? d.getIp() : "N/A"));
-        holder.tvMac.setText("MAC: " + (d.getMac() != null ? d.getMac() : "N/A"));
+        holder.tvIp.setText(d.getIp() != null ? d.getIp() : "N/A");
+        holder.tvMac.setText(d.getMac() != null ? d.getMac() : "N/A");
         holder.tvLastSeen.setText("Last seen: " + Device.formatLastSeen(d.getLastSeen()));
 
         boolean isOnline = d.isOnline();
         holder.tvStatus.setText(isOnline ? "ONLINE" : "OFFLINE");
+        holder.tvStatus.setTextColor(ContextCompat.getColor(
+                context,
+                isOnline ? R.color.success : R.color.text_tertiary
+        ));
 
-        // Dynamic Status Badge Color
-        if (isOnline) {
-            holder.tvStatus.setTextColor(ContextCompat.getColor(contextView.getContext(), R.color.success));
-        } else {
-            holder.tvStatus.setTextColor(ContextCompat.getColor(contextView.getContext(), R.color.text_tertiary));
-        }
+        String displayName = d.getName() != null && !d.getName().isEmpty()
+                ? d.getName()
+                : "Unnamed Device";
 
-        // Name setup with emojis
-        String displayName = d.getName() != null && !d.getName().isEmpty() ? d.getName() : "Unnamed Device";
         if (d.isProtected()) displayName += " 🛡";
         if (d.isBanned()) displayName += " 🚫";
+
         holder.tvName.setText(displayName);
 
-        // Name text color based on state (Using theme colors instead of hardcoded hex)
         if (d.isBanned()) {
-            holder.tvName.setTextColor(ContextCompat.getColor(contextView.getContext(), R.color.error));
+            holder.tvName.setTextColor(ContextCompat.getColor(context, R.color.error));
         } else if (d.isProtected()) {
-            holder.tvName.setTextColor(ContextCompat.getColor(contextView.getContext(), R.color.primary));
+            holder.tvName.setTextColor(ContextCompat.getColor(context, R.color.primary));
         } else {
-            holder.tvName.setTextColor(ContextCompat.getColor(contextView.getContext(), R.color.text_primary));
+            holder.tvName.setTextColor(ContextCompat.getColor(context, R.color.text_primary));
         }
 
-        // Checkbox logic
-        boolean selected = selectedMacs.contains(d.getMac());
-        holder.cbSelect.setOnCheckedChangeListener(null); // Prevent trigger loop
-        holder.cbSelect.setChecked(selected);
-        holder.cbSelect.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            toggleSelection(d.getMac());
-            if (listener != null) listener.onSelectionChanged();
+        boolean selected = selectedMacs.contains(mac);
+        holder.itemView.setSelected(selected);
+        holder.itemView.setActivated(selected);
+        holder.itemView.refreshDrawableState();
+
+        holder.itemView.setOnClickListener(v -> {
+            if (isSelectionActive()) {
+                toggleSelection(mac);
+                if (listener != null) listener.onSelectionChanged();
+            } else {
+                if (listener != null) listener.onDetailsClick(d);
+            }
         });
 
         holder.itemView.setOnLongClickListener(v -> {
-            toggleSelection(d.getMac());
-            if (listener != null) listener.onSelectionChanged();
+            if (!mac.isEmpty()) {
+                toggleSelection(mac);
+                if (listener != null) listener.onSelectionChanged();
+            }
             return true;
         });
 
-        // Ban Button logic (Using MaterialButton and theme colors)
         boolean isProtected = d.isProtected();
         boolean isBanned = d.isBanned();
 
@@ -178,35 +186,26 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
             holder.btnBan.setText("Protected");
             holder.btnBan.setEnabled(false);
             holder.btnBan.setBackgroundTintList(ColorStateList.valueOf(
-                    ContextCompat.getColor(contextView.getContext(), R.color.surface_variant)));
-            holder.btnBan.setTextColor(ContextCompat.getColor(contextView.getContext(), R.color.text_tertiary));
+                    ContextCompat.getColor(context, R.color.surface_variant)));
+            holder.btnBan.setTextColor(ContextCompat.getColor(context, R.color.text_tertiary));
         } else {
             holder.btnBan.setEnabled(true);
+
             if (isBanned) {
                 holder.btnBan.setText("Unban");
                 holder.btnBan.setBackgroundTintList(ColorStateList.valueOf(
-                        ContextCompat.getColor(contextView.getContext(), R.color.success)));
-                holder.btnBan.setTextColor(ContextCompat.getColor(contextView.getContext(), R.color.on_success));
+                        ContextCompat.getColor(context, R.color.success)));
+                holder.btnBan.setTextColor(ContextCompat.getColor(context, R.color.on_success));
             } else {
                 holder.btnBan.setText("Ban");
                 holder.btnBan.setBackgroundTintList(ColorStateList.valueOf(
-                        ContextCompat.getColor(contextView.getContext(), R.color.error)));
-                holder.btnBan.setTextColor(ContextCompat.getColor(contextView.getContext(), R.color.on_error));
+                        ContextCompat.getColor(context, R.color.error)));
+                holder.btnBan.setTextColor(ContextCompat.getColor(context, R.color.on_error));
             }
         }
 
-        // Click Listeners
         holder.btnBan.setOnClickListener(v -> {
             if (listener != null) listener.onBanClick(d);
-        });
-        holder.btnPing.setOnClickListener(v -> {
-            if (listener != null) listener.onPingClick(d);
-        });
-        holder.btnDetails.setOnClickListener(v -> {
-            if (listener != null) listener.onDetailsClick(d);
-        });
-        holder.tvName.setOnClickListener(v -> {
-            if (listener != null) listener.onDetailsClick(d);
         });
     }
 
@@ -216,21 +215,17 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
-        MaterialCheckBox cbSelect;
         TextView tvName, tvIp, tvMac, tvStatus, tvLastSeen;
-        MaterialButton btnPing, btnBan, btnDetails;
+        MaterialButton btnBan;
 
         ViewHolder(View v) {
             super(v);
-            cbSelect = v.findViewById(R.id.cb_select);
             tvName = v.findViewById(R.id.tv_name);
             tvIp = v.findViewById(R.id.tv_ip);
             tvMac = v.findViewById(R.id.tv_mac);
             tvStatus = v.findViewById(R.id.tv_status);
             tvLastSeen = v.findViewById(R.id.tv_last_seen);
-            btnPing = v.findViewById(R.id.btn_ping);
             btnBan = v.findViewById(R.id.btn_ban);
-            btnDetails = v.findViewById(R.id.btn_details);
         }
     }
 }
