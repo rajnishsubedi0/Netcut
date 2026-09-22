@@ -95,6 +95,27 @@ public class Device {
         this.lastSeen = lastSeen;
     }
 
+    public static String formatLastSeen(long time) {
+        if (time <= 0) return "Never";
+
+        long diff = System.currentTimeMillis() - time;
+        if (diff < 0) diff = 0;
+
+        long seconds = diff / 1000;
+
+        if (seconds < 5) return "Just now";
+        if (seconds < 60) return seconds + "s ago";
+
+        long minutes = seconds / 60;
+        if (minutes < 60) return minutes + "m ago";
+
+        long hours = minutes / 60;
+        if (hours < 24) return hours + "h ago";
+
+        long days = hours / 24;
+        return days + "d ago";
+    }
+
     public static String normalizeMac(String mac) {
         if (mac == null || mac.trim().isEmpty()) return "";
         return mac.trim().toUpperCase().replace("-", ":");
@@ -120,26 +141,5 @@ public class Device {
     public static boolean isValidMac(String mac) {
         if (mac == null) return false;
         return mac.matches("([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}");
-    }
-
-    public static String formatLastSeen(long time) {
-        if (time <= 0) return "Never";
-
-        long diff = System.currentTimeMillis() - time;
-        if (diff < 0) diff = 0;
-
-        long seconds = diff / 1000;
-
-        if (seconds < 5) return "Just now";
-        if (seconds < 60) return seconds + "s ago";
-
-        long minutes = seconds / 60;
-        if (minutes < 60) return minutes + "m ago";
-
-        long hours = minutes / 60;
-        if (hours < 24) return hours + "h ago";
-
-        long days = hours / 24;
-        return days + "d ago";
     }
 }
