@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <color name="background">#0B0F19</color>
+    <color name="surface">#151B2B</color>
+    <color name="surface_variant">#1F273D</color>
+    <color name="surface_elevated">#242E45</color>
+    <color name="border">#2A344D</color>
+
+    <color name="text_primary">#F1F5F9</color>
+    <color name="text_secondary">#94A3B8</color>
+    <color name="text_tertiary">#64748B</color>
+
+    <color name="on_primary">#0B0F19</color>
+    <color name="on_secondary">#0B0F19</color>
+    <color name="on_background">#F1F5F9</color>
+    <color name="on_surface">#F1F5F9</color>
+    <color name="on_surface_variant">#94A3B8</color>
+
+    <color name="primary">#38BDF8</color>
+    <color name="primary_variant">#0EA5E9</color>
+    <color name="primary_container">#16324A</color>
+    <color name="on_primary_container">#38BDF8</color>
+    <color name="secondary">#818CF8</color>
+    <color name="secondary_variant">#6366F1</color>
+
+    <color name="success">#34D399</color>
+    <color name="success_container">#1A2E25</color>
+    <color name="on_success">#0B0F19</color>
+    <color name="error">#F87171</color>
+    <color name="error_container">#2A1B24</color>
+    <color name="on_error">#0B0F19</color>
+    <color name="warning">#FBBF24</color>
+    <color name="warning_container">#2E2510</color>
+    <color name="info">#60A5FA</color>
+    <color name="info_container">#1A2540</color>
+
+    <color name="tab_selected_bg">#38BDF8</color>
+    <color name="tab_selected_text">#0B0F19</color>
+    <color name="tab_unselected_bg">#1F273D</color>
+    <color name="tab_unselected_text">#94A3B8</color>
+
+    <color name="status_running">#34D399</color>
+    <color name="status_stopped">#64748B</color>
+    <color name="status_running_bg">#132B22</color>
+    <color name="status_stopped_bg">#151B2B</color>
+
+    <color name="btn_start_bg">#38BDF8</color>
+    <color name="btn_start_text">#0B0F19</color>
+    <color name="btn_stop_bg">#F87171</color>
+    <color name="btn_stop_text">#0B0F19</color>
+
+    <color name="ripple">#1A38BDF8</color>
+    <color name="scrim">#80000000</color>
+    <color name="divider">#2A344D</color>
+
+    <color name="gray">#64748B</color>
+    <color name="green_teal">#34D399</color>
+    <color name="gray_100">#1F273D</color>
+    <color name="gray_200">#2A344D</color>
+    <color name="gray_300">#475569</color>
+    <color name="gray_400">#94A3B8</color>
+    <color name="gray_500">#64748B</color>
+    <color name="primary_light">#38BDF8</color>
+    <color name="info_light">#1A2540</color>
+    <color name="warning_light">#2E2510</color>
+    <color name="success_light">#1A2E25</color>
+    <color name="success_dark">#34D399</color>
+    <color name="error_light">#2A1B24</color>
+</resources>

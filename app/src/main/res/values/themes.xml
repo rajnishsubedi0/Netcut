@@ -1,4 +1,6 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Common base (shared by light & dark) -->
     <style name="Base.Theme.Netcut" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryVariant">@color/primary_variant</item>
@@ -14,35 +16,23 @@
         <item name="colorSurfaceVariant">@color/surface_variant</item>
 
         <item name="colorError">@color/error</item>
-        <item name="colorOnError">@color/white</item>
+        <item name="colorOnError">@color/on_error</item>
 
-        <!-- Force Dark Status Bar Icons -->
         <item name="android:statusBarColor">@color/background</item>
         <item name="android:navigationBarColor">@color/background</item>
-        <item name="android:windowLightStatusBar">false</item>
 
         <item name="materialButtonStyle">@style/Widget.Netcut.Button</item>
         <item name="materialButtonOutlinedStyle">@style/Widget.Netcut.Button.Outlined</item>
         <item name="materialButtonTonalStyle">@style/Widget.Netcut.Button.Tonal</item>
     </style>
 
-    <style name="Theme.Netcut" parent="Base.Theme.Netcut" />
-
-    <style name="Widget.Netcut.Button" parent="Widget.Material3.Button">
-        <item name="cornerRadius">12dp</item>
-        <item name="android:textAllCaps">false</item>
+    <!-- LIGHT: dark icons on light status bar -->
+    <style name="Theme.Netcut" parent="Base.Theme.Netcut">
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
     </style>
 
-    <style name="Widget.Netcut.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
-        <item name="cornerRadius">12dp</item>
-        <item name="android:textAllCaps">false</item>
-    </style>
-
-    <style name="Widget.Netcut.Button.Tonal" parent="Widget.Material3.Button.TonalButton">
-        <item name="cornerRadius">12dp</item>
-        <item name="android:textAllCaps">false</item>
-    </style>
-    <!-- Add these styles inside your <resources> tag -->
+    <!-- Themed dialogs (adapts automatically to light/dark) -->
     <style name="Theme.Netcut.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
         <item name="android:background">@color/surface</item>
         <item name="android:textColor">@color/text_primary</item>
@@ -71,5 +61,20 @@
 
     <style name="Netcut.Dialog.Shape" parent="ShapeAppearance.Material3.Corner.Large">
         <item name="cornerSize">24dp</item>
+    </style>
+
+    <style name="Widget.Netcut.Button" parent="Widget.Material3.Button">
+        <item name="cornerRadius">12dp</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+
+    <style name="Widget.Netcut.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="cornerRadius">12dp</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+
+    <style name="Widget.Netcut.Button.Tonal" parent="Widget.Material3.Button.TonalButton">
+        <item name="cornerRadius">12dp</item>
+        <item name="android:textAllCaps">false</item>
     </style>
 </resources>

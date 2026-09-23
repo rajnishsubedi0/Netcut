@@ -68,10 +68,12 @@ public class MainActivity extends AppCompatActivity
     private static final String KEY_BATTERY_PROMPT_LAST_TIME = "battery_prompt_last_time";
     private static final long BATTERY_PROMPT_COOLDOWN_MS = 24 * 60 * 60 * 1000L;
 
+
     private static boolean batteryWarningShownThisSession = false;
 
     private NetcutService service;
     private boolean bound = false;
+    private int appliedThemeMode;
 
     private DeviceAdapter connectedAdapter;
     private BannedDeviceAdapter bannedAdapter;
@@ -135,6 +137,7 @@ public class MainActivity extends AppCompatActivity
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
+        appliedThemeMode = ThemeManager.getSavedMode(this);
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
@@ -313,6 +316,10 @@ public class MainActivity extends AppCompatActivity
     @Override
     protected void onResume() {
         super.onResume();
+        if (ThemeManager.getSavedMode(this) != appliedThemeMode) {
+            recreate();   // reload UI with new theme
+            return;
+        }
         mainHandler.postDelayed(() -> {
             if (!isFinishing()) checkBatteryOptimization();
         }, 400);
