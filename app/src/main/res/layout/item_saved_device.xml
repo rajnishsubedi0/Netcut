@@ -17,8 +17,8 @@
         android:gravity="center_vertical"
         android:paddingStart="16dp"
         android:paddingEnd="12dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="12dp">
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp">
 
         <LinearLayout
             android:layout_width="0dp"
@@ -27,7 +27,6 @@
             android:orientation="vertical"
             android:layout_marginEnd="10dp">
 
-            <!-- Line 1: IP + NAME -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -38,7 +37,7 @@
                     android:id="@+id/tv_ip"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textSize="17sp"
+                    android:textSize="18sp"
                     android:textStyle="bold"
                     android:textColor="@color/text_primary"
                     android:fontFamily="monospace"
@@ -50,26 +49,25 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:textSize="13sp"
+                    android:textSize="15sp"
                     android:textColor="@color/text_primary"
                     android:layout_marginStart="8dp"
                     android:maxLines="1"
                     android:ellipsize="end" />
             </LinearLayout>
 
-            <!-- Line 2: STATUS + MAC -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:layout_marginTop="4dp">
+                android:layout_marginTop="6dp">
 
                 <TextView
                     android:id="@+id/tv_status"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textSize="10sp"
+                    android:textSize="11sp"
                     android:textStyle="bold"
                     android:letterSpacing="0.08"
                     android:textColor="@color/warning" />
@@ -79,7 +77,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:textSize="11sp"
+                    android:textSize="13sp"
                     android:textColor="@color/text_tertiary"
                     android:fontFamily="monospace"
                     android:layout_marginStart="8dp"
@@ -87,34 +85,32 @@
                     android:ellipsize="end" />
             </LinearLayout>
 
-            <!-- Line 3: last seen -->
             <TextView
                 android:id="@+id/tv_last_seen"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="11sp"
+                android:textSize="13sp"
                 android:textColor="@color/text_tertiary"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="4dp"
                 android:maxLines="1"
                 android:ellipsize="end" />
         </LinearLayout>
 
-        <!-- Direct Remove from Saved button -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_remove_saved"
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="wrap_content"
-            android:layout_height="34dp"
-            android:minWidth="72dp"
+            android:layout_height="40dp"
+            android:minWidth="80dp"
             android:text="Remove"
             android:textAllCaps="false"
-            android:textSize="11sp"
+            android:textSize="12sp"
             android:textStyle="bold"
             android:textColor="@color/error"
             app:backgroundTint="@color/error_container"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            app:cornerRadius="9dp" />
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            app:cornerRadius="10dp" />
     </LinearLayout>
 
     <View

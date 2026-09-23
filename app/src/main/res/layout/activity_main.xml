@@ -10,95 +10,89 @@
     android:fitsSystemWindows="true"
     tools:context=".MainActivity">
 
-    <!-- ============ TOP ACTION BAR (logo · title · play/pause · loader · ⋮) ============ -->
+    <!-- ============ TOP ACTION BAR  ============ -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minHeight="56dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="@color/surface"
-        android:elevation="6dp"
-        android:paddingStart="10dp"
-        android:paddingEnd="4dp"
-        android:paddingTop="6dp"
-        android:paddingBottom="6dp">
-
-
+        android:background="@color/background"
+        android:elevation="4dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="24dp"
+        android:paddingBottom="16dp">
 
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="NetCut"
-            android:textSize="18sp"
+            android:textSize="22sp"
             android:textStyle="bold"
             android:textColor="@color/text_primary"
-            android:fontFamily="sans-serif-medium"
-            android:layout_marginStart="4dp"
+            android:fontFamily="sans-serif-black"
+            android:letterSpacing="-0.02"
             android:layout_marginEnd="8dp" />
 
-        <!-- ROUND PLAY / PAUSE BUTTON -->
-        <!-- SESSION LOG BUTTON -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_logs"
             style="@style/Widget.Material3.Button.IconButton"
-            android:layout_width="42dp"
-            android:layout_height="42dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:contentDescription="Session logs"
             android:insetLeft="0dp"
             android:insetTop="0dp"
             android:insetRight="0dp"
             android:insetBottom="0dp"
             app:icon="@drawable/ic_logs"
-            app:iconSize="20dp"
+            app:iconSize="22dp"
             app:iconTint="@color/text_secondary"
-            android:layout_marginEnd="2dp" />
+            android:layout_marginEnd="4dp" />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_start"
             style="@style/Widget.Material3.Button.IconButton.Filled"
-            android:layout_width="42dp"
-            android:layout_height="42dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:contentDescription="Start service"
             android:insetLeft="0dp"
             android:insetTop="0dp"
             android:insetRight="0dp"
             android:insetBottom="0dp"
             app:icon="@drawable/ic_play"
-            app:iconSize="20dp"
+            app:iconSize="22dp"
             app:iconTint="@color/btn_start_text"
             app:backgroundTint="@color/btn_start_bg"
-            app:cornerRadius="21dp" />
+            app:cornerRadius="22dp" />
 
-        <!-- CIRCULAR LOADING SPINNER -->
         <ProgressBar
             android:id="@+id/progress_loading"
             style="@style/Widget.AppCompat.ProgressBar"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:padding="9dp"
+            android:padding="8dp"
             android:indeterminate="true"
             android:indeterminateTint="@color/primary"
             android:visibility="gone"
-            android:layout_marginStart="2dp" />
+            android:layout_marginStart="4dp" />
 
-        <!-- THREE-DOT OVERFLOW MENU -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_settings"
             style="@style/Widget.Material3.Button.IconButton"
-            android:layout_width="42dp"
-            android:layout_height="42dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:contentDescription="More options"
             android:insetLeft="0dp"
             android:insetTop="0dp"
             android:insetRight="0dp"
             android:insetBottom="0dp"
             app:icon="@drawable/ic_more_vert"
-            app:iconSize="20dp"
+            app:iconSize="22dp"
             app:iconTint="@color/text_secondary" />
     </LinearLayout>
 
-    <!-- ============ THIN SCAN PROGRESS LINE (like WiFiKill blue line) ============ -->
+    <!-- ============ THIN SCAN PROGRESS LINE ============ -->
     <ProgressBar
         android:id="@+id/scan_progress"
         style="@style/Widget.AppCompat.ProgressBar.Horizontal"
@@ -132,13 +126,13 @@
             android:gravity="center_vertical"
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
-            android:paddingTop="7dp"
-            android:paddingBottom="7dp">
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp">
 
             <View
                 android:id="@+id/green_red"
-                android:layout_width="9dp"
-                android:layout_height="9dp"
+                android:layout_width="10dp"
+                android:layout_height="10dp"
                 android:background="@color/status_stopped" />
 
             <TextView
@@ -147,42 +141,42 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Service is not running"
-                android:textSize="12sp"
+                android:textSize="13sp"
                 android:textStyle="bold"
                 android:textColor="@color/text_secondary"
-                android:layout_marginStart="7dp" />
+                android:layout_marginStart="8dp" />
 
             <TextView
                 android:id="@+id/device_stats"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Banned: 0 • Protected: 0"
-                android:textSize="12sp"
+                android:textSize="13sp"
                 android:textColor="@color/text_tertiary" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- ============ SEARCH + TABS ============ -->
     <!-- ============ SEARCH + TABS ============ -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:background="@color/background"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="6dp">
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="10dp">
 
+        <!-- Fixed height FrameLayout to prevent jitter -->
         <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp">
+            android:layout_height="56dp"
+            android:layout_marginBottom="12dp">
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/search_container"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="56dp"
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                 android:hint="Search devices"
                 android:textColorHint="@color/text_tertiary"
@@ -191,10 +185,10 @@
                 app:boxStrokeColor="@color/primary"
                 app:boxStrokeWidth="1dp"
                 app:boxStrokeWidthFocused="2dp"
-                app:boxCornerRadiusTopStart="12dp"
-                app:boxCornerRadiusTopEnd="12dp"
-                app:boxCornerRadiusBottomStart="12dp"
-                app:boxCornerRadiusBottomEnd="12dp"
+                app:boxCornerRadiusTopStart="14dp"
+                app:boxCornerRadiusTopEnd="14dp"
+                app:boxCornerRadiusBottomStart="14dp"
+                app:boxCornerRadiusBottomEnd="14dp"
                 app:startIconDrawable="@drawable/ic_search"
                 app:startIconTint="@color/text_tertiary"
                 app:endIconMode="clear_text"
@@ -203,8 +197,8 @@
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/et_search"
                     android:layout_width="match_parent"
-                    android:layout_height="44dp"
-                    android:textSize="13sp"
+                    android:layout_height="match_parent"
+                    android:textSize="15sp"
                     android:textColor="@color/text_primary"
                     android:singleLine="true"
                     android:inputType="text"
@@ -214,49 +208,52 @@
             <LinearLayout
                 android:id="@+id/ll_selection_actions"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="56dp"
                 android:orientation="horizontal"
                 android:visibility="gone"
-                android:layout_gravity="center_vertical">
+                android:gravity="center_vertical">
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_ban_selected"
                     style="@style/Widget.Material3.Button.TonalButton"
                     android:layout_width="0dp"
-                    android:layout_height="38dp"
+                    android:layout_height="44dp"
                     android:layout_weight="1"
                     android:text="Ban (0)"
-                    android:textSize="12sp"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
                     android:textColor="@color/error"
                     app:backgroundTint="@color/error_container"
-                    app:cornerRadius="10dp"
-                    android:layout_marginEnd="4dp" />
+                    app:cornerRadius="12dp"
+                    android:layout_marginEnd="6dp" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_unban_selected"
                     style="@style/Widget.Material3.Button.TonalButton"
                     android:layout_width="0dp"
-                    android:layout_height="38dp"
+                    android:layout_height="44dp"
                     android:layout_weight="1"
                     android:text="Unban (0)"
-                    android:textSize="12sp"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
                     android:textColor="@color/success"
                     app:backgroundTint="@color/success_container"
-                    app:cornerRadius="10dp"
-                    android:layout_marginStart="4dp"
-                    android:layout_marginEnd="4dp" />
+                    app:cornerRadius="12dp"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginEnd="6dp" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_clear_selection"
                     style="@style/Widget.Material3.Button.TextButton"
                     android:layout_width="0dp"
-                    android:layout_height="38dp"
+                    android:layout_height="44dp"
                     android:layout_weight="0.8"
                     android:text="Clear"
-                    android:textSize="12sp"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
                     android:textColor="@color/text_secondary"
-                    app:cornerRadius="10dp"
-                    android:layout_marginStart="4dp" />
+                    app:cornerRadius="12dp"
+                    android:layout_marginStart="6dp" />
             </LinearLayout>
         </FrameLayout>
 
@@ -265,7 +262,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@color/surface_variant"
-            android:padding="3dp"
+            android:padding="4dp"
             app:singleSelection="true"
             app:selectionRequired="true">
 
@@ -273,61 +270,59 @@
                 android:id="@+id/btn_tab_connected"
                 style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="0dp"
-                android:layout_height="36dp"
+                android:layout_height="42dp"
                 android:layout_weight="1"
                 android:text="Connected"
-                android:textSize="11sp"
+                android:textSize="13sp"
                 android:textStyle="bold"
                 android:textColor="@color/tab_selected_text"
                 app:backgroundTint="@color/tab_selected_bg"
                 app:strokeColor="@android:color/transparent"
-                app:cornerRadius="9dp" />
+                app:cornerRadius="10dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_tab_banned"
                 style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="0dp"
-                android:layout_height="36dp"
+                android:layout_height="42dp"
                 android:layout_weight="1"
                 android:text="Banned"
-                android:textSize="11sp"
+                android:textSize="13sp"
                 android:textStyle="bold"
                 android:textColor="@color/tab_unselected_text"
                 app:backgroundTint="@android:color/transparent"
                 app:strokeColor="@android:color/transparent"
-                app:cornerRadius="9dp" />
+                app:cornerRadius="10dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_tab_protected"
                 style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="0dp"
-                android:layout_height="36dp"
+                android:layout_height="42dp"
                 android:layout_weight="1"
                 android:text="Protected"
-                android:textSize="11sp"
+                android:textSize="13sp"
                 android:textStyle="bold"
                 android:textColor="@color/tab_unselected_text"
                 app:backgroundTint="@android:color/transparent"
                 app:strokeColor="@android:color/transparent"
-                app:cornerRadius="9dp" />
+                app:cornerRadius="10dp" />
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_tab_saved"
                 style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="0dp"
-                android:layout_height="36dp"
+                android:layout_height="42dp"
                 android:layout_weight="1"
                 android:text="Saved"
-                android:textSize="10sp"
+                android:textSize="13sp"
                 android:textStyle="bold"
                 android:textColor="@color/tab_unselected_text"
                 app:backgroundTint="@android:color/transparent"
                 app:strokeColor="@android:color/transparent"
-                app:cornerRadius="9dp" />
+                app:cornerRadius="10dp" />
         </com.google.android.material.button.MaterialButtonToggleGroup>
-
     </LinearLayout>
-
-
     <!-- ============ DEVICE LIST ============ -->
     <FrameLayout
         android:layout_width="match_parent"
@@ -371,6 +366,7 @@
             android:clipToPadding="false"
             android:paddingBottom="8dp"
             android:scrollbars="vertical" />
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rv_saved"
             android:layout_width="match_parent"
@@ -381,9 +377,9 @@
             android:clipToPadding="false"
             android:paddingBottom="8dp"
             android:scrollbars="vertical" />
-
     </FrameLayout>
-    <!-- ============ BOTTOM ACTION BAR (counts · restore all · ban all) ============ -->
+
+    <!-- ============ BOTTOM ACTION BAR ============ -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -391,10 +387,10 @@
         android:gravity="center_vertical"
         android:background="@color/surface"
         android:elevation="8dp"
-        android:paddingStart="14dp"
-        android:paddingEnd="10dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp">
+        android:paddingStart="16dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp">
 
         <TextView
             android:id="@+id/tv_stats"
@@ -402,7 +398,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="0 devices online"
-            android:textSize="13sp"
+            android:textSize="14sp"
             android:textStyle="bold"
             android:textColor="@color/text_primary" />
 
@@ -410,25 +406,25 @@
             android:id="@+id/btn_restore_all"
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="wrap_content"
-            android:layout_height="38dp"
+            android:layout_height="42dp"
             android:text="Restore All"
-            android:textSize="12sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:textColor="@color/success"
             app:backgroundTint="@color/success_container"
-            app:cornerRadius="10dp"
-            android:layout_marginEnd="6dp" />
+            app:cornerRadius="12dp"
+            android:layout_marginEnd="8dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_ban_all"
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="wrap_content"
-            android:layout_height="38dp"
+            android:layout_height="42dp"
             android:text="Ban All"
-            android:textSize="12sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:textColor="@color/error"
             app:backgroundTint="@color/error_container"
-            app:cornerRadius="10dp" />
+            app:cornerRadius="12dp" />
     </LinearLayout>
 </LinearLayout>
