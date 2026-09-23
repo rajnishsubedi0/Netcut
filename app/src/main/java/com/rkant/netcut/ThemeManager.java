@@ -15,7 +15,8 @@ public class ThemeManager {
     public static int getSavedMode(Context context) {
         SharedPreferences prefs = context.getApplicationContext()
                 .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        return prefs.getInt(KEY_THEME_MODE, MODE_SYSTEM);
+        // ✅ DEFAULT THEME IS NOW LIGHT (was MODE_SYSTEM)
+        return prefs.getInt(KEY_THEME_MODE, MODE_LIGHT);
     }
 
     public static void setThemeMode(Context context, int mode) {
@@ -27,7 +28,7 @@ public class ThemeManager {
         applyThemeMode(mode);
     }
 
-    /** Call once in Application.onCreate() */
+
     public static void applySavedTheme(Context context) {
         applyThemeMode(getSavedMode(context));
     }

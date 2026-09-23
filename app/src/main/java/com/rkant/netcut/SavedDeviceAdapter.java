@@ -93,7 +93,7 @@ public class SavedDeviceAdapter extends RecyclerView.Adapter<SavedDeviceAdapter.
         holder.tvStatus.setTextColor(ContextCompat.getColor(context, R.color.warning));
 
         String displayName = d.getName();
-        if (d.isSaved()) displayName += " ⭐";
+
         if (d.isProtected()) displayName += " 🛡";
         if (d.isBanned()) displayName += " 🚫";
 
