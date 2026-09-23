@@ -251,6 +251,18 @@
         app:backgroundTint="@color/primary"
         app:cornerRadius="14dp"
         android:layout_marginBottom="12dp" />
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_sheet_save"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:text="Save Device"
+        android:textAllCaps="false"
+        android:textSize="14sp"
+        android:textColor="@color/primary"
+        app:backgroundTint="@color/surface_variant"
+        app:cornerRadius="14dp"
+        android:layout_marginBottom="14dp" />
 
     <!-- Action: Ping + Rename -->
     <LinearLayout
@@ -258,6 +270,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:layout_marginBottom="8dp">
+
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_sheet_ping"

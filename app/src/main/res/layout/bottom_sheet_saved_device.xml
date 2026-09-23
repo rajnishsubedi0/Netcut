@@ -20,7 +20,7 @@
 
     <!-- Device Name -->
     <TextView
-        android:id="@+id/tv_banned_sheet_name"
+        android:id="@+id/tv_saved_sheet_name"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Device Name"
@@ -67,7 +67,7 @@
                 android:layout_marginTop="14dp" />
 
             <TextView
-                android:id="@+id/tv_banned_sheet_ip"
+                android:id="@+id/tv_saved_sheet_ip"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="192.168.1.1"
@@ -92,7 +92,7 @@
                 android:textColor="@color/text_tertiary" />
 
             <TextView
-                android:id="@+id/tv_banned_sheet_mac"
+                android:id="@+id/tv_saved_sheet_mac"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="AA:BB:CC:DD:EE:FF"
@@ -106,15 +106,15 @@
 
     <!-- Status Card -->
     <com.google.android.material.card.MaterialCardView
-        android:id="@+id/card_banned_sheet_status"
+        android:id="@+id/card_saved_sheet_status"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="12dp"
-        app:cardBackgroundColor="@color/error_container"
+        app:cardBackgroundColor="@color/surface_variant"
         app:cardCornerRadius="16dp"
         app:cardElevation="0dp"
         app:strokeWidth="1dp"
-        app:strokeColor="@color/error">
+        app:strokeColor="@color/warning">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -124,20 +124,20 @@
             android:padding="14dp">
 
             <View
-                android:id="@+id/dot_banned_sheet_status"
+                android:id="@+id/dot_saved_sheet_status"
                 android:layout_width="10dp"
                 android:layout_height="10dp"
-                android:background="@color/error" />
+                android:background="@color/warning" />
 
             <TextView
-                android:id="@+id/tv_banned_sheet_status"
+                android:id="@+id/tv_saved_sheet_status"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Banned"
+                android:text="Saved"
                 android:textSize="14sp"
                 android:textStyle="bold"
-                android:textColor="@color/error"
+                android:textColor="@color/warning"
                 android:layout_marginStart="12dp" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
@@ -174,7 +174,7 @@
                     android:letterSpacing="0.08" />
 
                 <TextView
-                    android:id="@+id/tv_banned_sheet_first_seen"
+                    android:id="@+id/tv_saved_sheet_first_seen"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Never"
@@ -210,7 +210,7 @@
                     android:letterSpacing="0.08" />
 
                 <TextView
-                    android:id="@+id/tv_banned_sheet_last_seen"
+                    android:id="@+id/tv_saved_sheet_last_seen"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Never"
@@ -222,28 +222,43 @@
         </com.google.android.material.card.MaterialCardView>
     </LinearLayout>
 
-    <!-- Action: Unban -->
+    <!-- Action: Remove from Saved -->
     <com.google.android.material.button.MaterialButton
-        android:id="@+id/btn_banned_sheet_unban"
+        android:id="@+id/btn_saved_sheet_remove_saved"
         style="@style/Widget.Material3.Button"
         android:layout_width="match_parent"
         android:layout_height="52dp"
-        android:text="Unban Device"
+        android:text="Remove from Saved"
         android:textAllCaps="false"
         android:textSize="15sp"
         android:textStyle="bold"
-        android:textColor="@color/on_success"
-        app:backgroundTint="@color/success"
+        android:textColor="@color/on_error"
+        app:backgroundTint="@color/error"
         app:cornerRadius="14dp"
         android:layout_marginBottom="8dp" />
 
-    <!-- Action: Protect -->
+    <!-- Action: Ban / Unban dynamic -->
     <com.google.android.material.button.MaterialButton
-        android:id="@+id/btn_banned_sheet_protect"
+        android:id="@+id/btn_saved_sheet_ban"
         style="@style/Widget.Material3.Button"
         android:layout_width="match_parent"
         android:layout_height="52dp"
-        android:text="Unban &amp; Protect"
+        android:text="Ban Device"
+        android:textAllCaps="false"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:textColor="@color/on_error"
+        app:backgroundTint="@color/error"
+        app:cornerRadius="14dp"
+        android:layout_marginBottom="8dp" />
+
+    <!-- Action: Protect / Remove Protection dynamic -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_saved_sheet_protect"
+        style="@style/Widget.Material3.Button"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:text="Protect Device"
         android:textAllCaps="false"
         android:textSize="15sp"
         android:textStyle="bold"
@@ -251,36 +266,46 @@
         app:backgroundTint="@color/primary"
         app:cornerRadius="14dp"
         android:layout_marginBottom="12dp" />
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btn_banned_sheet_save"
-        style="@style/Widget.Material3.Button.TonalButton"
-        android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:text="Save Device"
-        android:textAllCaps="false"
-        android:textSize="14sp"
-        android:textColor="@color/primary"
-        app:backgroundTint="@color/surface_variant"
-        app:cornerRadius="12dp"
-        android:layout_marginBottom="8dp" />
 
-    <!-- Action: Rename -->
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btn_banned_sheet_rename"
-        style="@style/Widget.Material3.Button.TonalButton"
+    <!-- Action: Ping + Rename -->
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:text="Rename"
-        android:textAllCaps="false"
-        android:textSize="14sp"
-        android:textColor="@color/text_primary"
-        app:backgroundTint="@color/surface_variant"
-        app:cornerRadius="12dp"
-        android:layout_marginBottom="8dp" />
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_saved_sheet_ping"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:text="Ping"
+            android:textAllCaps="false"
+            android:textSize="14sp"
+            android:textColor="@color/primary"
+            app:backgroundTint="@color/surface_variant"
+            app:cornerRadius="12dp"
+            android:layout_marginEnd="5dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_saved_sheet_rename"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:text="Rename"
+            android:textAllCaps="false"
+            android:textSize="14sp"
+            android:textColor="@color/text_primary"
+            app:backgroundTint="@color/surface_variant"
+            app:cornerRadius="12dp"
+            android:layout_marginStart="5dp" />
+    </LinearLayout>
 
     <!-- Action: Close -->
     <com.google.android.material.button.MaterialButton
-        android:id="@+id/btn_banned_sheet_close"
+        android:id="@+id/btn_saved_sheet_close"
         style="@style/Widget.Material3.Button.TextButton"
         android:layout_width="match_parent"
         android:layout_height="46dp"

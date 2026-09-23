@@ -251,6 +251,18 @@
         app:backgroundTint="@color/error"
         app:cornerRadius="14dp"
         android:layout_marginBottom="12dp" />
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_protected_sheet_save"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="Save Device"
+        android:textAllCaps="false"
+        android:textSize="14sp"
+        android:textColor="@color/primary"
+        app:backgroundTint="@color/surface_variant"
+        app:cornerRadius="12dp"
+        android:layout_marginBottom="8dp" />
 
     <!-- Action: Rename -->
     <com.google.android.material.button.MaterialButton

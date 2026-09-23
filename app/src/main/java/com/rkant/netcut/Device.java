@@ -1,22 +1,27 @@
 package com.rkant.netcut;
 
 public class Device {
-
     private String mac;
     private String ip;
     private String name;
     private boolean isBanned;
     private boolean isOnline;
     private boolean isProtected;
+    private boolean isSaved;
     private long firstSeen;
     private long lastSeen;
 
     public Device(String mac, String ip, String name, boolean isBanned, boolean isOnline) {
-        this(mac, ip, name, isBanned, isOnline, false, 0L, 0L);
+        this(mac, ip, name, isBanned, isOnline, false, 0L, 0L, false);
     }
 
     public Device(String mac, String ip, String name, boolean isBanned, boolean isOnline,
                   boolean isProtected, long firstSeen, long lastSeen) {
+        this(mac, ip, name, isBanned, isOnline, isProtected, firstSeen, lastSeen, false);
+    }
+
+    public Device(String mac, String ip, String name, boolean isBanned, boolean isOnline,
+                  boolean isProtected, long firstSeen, long lastSeen, boolean isSaved) {
         this.mac = normalizeMac(mac);
         this.ip = ip != null ? ip.trim() : "";
         this.name = name;
@@ -25,6 +30,7 @@ public class Device {
         this.isProtected = isProtected;
         this.firstSeen = firstSeen;
         this.lastSeen = lastSeen;
+        this.isSaved = isSaved;
     }
 
     public String getMac() {
@@ -79,6 +85,14 @@ public class Device {
         isProtected = aProtected;
     }
 
+    public boolean isSaved() {
+        return isSaved;
+    }
+
+    public void setSaved(boolean saved) {
+        isSaved = saved;
+    }
+
     public long getFirstSeen() {
         return firstSeen;
     }
@@ -97,21 +111,15 @@ public class Device {
 
     public static String formatLastSeen(long time) {
         if (time <= 0) return "Never";
-
         long diff = System.currentTimeMillis() - time;
         if (diff < 0) diff = 0;
-
         long seconds = diff / 1000;
-
         if (seconds < 5) return "Just now";
         if (seconds < 60) return seconds + "s ago";
-
         long minutes = seconds / 60;
         if (minutes < 60) return minutes + "m ago";
-
         long hours = minutes / 60;
         if (hours < 24) return hours + "h ago";
-
         long days = hours / 24;
         return days + "d ago";
     }
@@ -125,7 +133,6 @@ public class Device {
         if (ip == null || ip.trim().isEmpty()) return false;
         String[] parts = ip.trim().split("\\.");
         if (parts.length != 4) return false;
-
         for (String part : parts) {
             try {
                 int val = Integer.parseInt(part);
@@ -134,7 +141,6 @@ public class Device {
                 return false;
             }
         }
-
         return true;
     }
 

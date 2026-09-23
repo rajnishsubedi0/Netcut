@@ -12,7 +12,7 @@ import java.util.List;
 public class DeviceDbHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME = "netcut.db";
-    private static final int DB_VERSION = 2;
+    private static final int DB_VERSION = 3;
 
     private static final String TABLE = "devices";
     private static final String COL_MAC = "mac_address";
@@ -22,6 +22,7 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
     private static final String COL_PROTECTED = "is_protected";
     private static final String COL_FIRST_SEEN = "first_seen";
     private static final String COL_LAST_SEEN = "last_seen";
+    private static final String COL_SAVED = "is_saved";
 
     public DeviceDbHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -35,6 +36,7 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
                 COL_NAME + " TEXT, " +
                 COL_BANNED + " INTEGER DEFAULT 0, " +
                 COL_PROTECTED + " INTEGER DEFAULT 0, " +
+                COL_SAVED + " INTEGER DEFAULT 0, " +
                 COL_FIRST_SEEN + " INTEGER DEFAULT 0, " +
                 COL_LAST_SEEN + " INTEGER DEFAULT 0)";
         db.execSQL(sql);
@@ -50,6 +52,13 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
             } catch (Exception ignored) {
                 db.execSQL("DROP TABLE IF EXISTS " + TABLE);
                 onCreate(db);
+            }
+        }
+
+        if (oldVersion < 3) {
+            try {
+                db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN " + COL_SAVED + " INTEGER DEFAULT 0");
+            } catch (Exception ignored) {
             }
         }
     }
@@ -159,6 +168,7 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
         values.put(COL_PROTECTED, 0);
         values.put(COL_FIRST_SEEN, 0);
         values.put(COL_LAST_SEEN, 0);
+        values.put(COL_SAVED, 0);
 
         db.insertWithOnConflict(TABLE, null, values, SQLiteDatabase.CONFLICT_REPLACE);
     }
@@ -254,7 +264,6 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
 
     private Device cursorToDevice(Cursor c) {
         String name = c.getString(c.getColumnIndexOrThrow(COL_NAME));
-
         return new Device(
                 c.getString(c.getColumnIndexOrThrow(COL_MAC)),
                 c.getString(c.getColumnIndexOrThrow(COL_IP)),
@@ -263,8 +272,95 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
                 false,
                 c.getInt(c.getColumnIndexOrThrow(COL_PROTECTED)) == 1,
                 c.getLong(c.getColumnIndexOrThrow(COL_FIRST_SEEN)),
-                c.getLong(c.getColumnIndexOrThrow(COL_LAST_SEEN))
+                c.getLong(c.getColumnIndexOrThrow(COL_LAST_SEEN)),
+                c.getInt(c.getColumnIndexOrThrow(COL_SAVED)) == 1
         );
+    }
+    public synchronized List<Device> getSavedDevices() {
+        List<Device> list = new ArrayList<>();
+        SQLiteDatabase db = getReadableDatabase();
+
+        try (Cursor c = db.query(
+                TABLE,
+                null,
+                COL_SAVED + "=?",
+                new String[]{"1"},
+                null,
+                null,
+                COL_LAST_SEEN + " DESC")) {
+
+            while (c.moveToNext()) {
+                Device d = cursorToDevice(c);
+                d.setOnline(false);
+                list.add(d);
+            }
+        } catch (Exception ignored) {
+        }
+
+        return list;
+    }
+
+    public synchronized void setSaved(String mac, String ip, String name,
+                                      long firstSeen, long lastSeen, boolean saved) {
+        if (mac == null || mac.trim().isEmpty()) return;
+
+        mac = Device.normalizeMac(mac);
+        SQLiteDatabase db = getWritableDatabase();
+        Device existing = getDeviceInternal(db, mac);
+
+        ContentValues values = new ContentValues();
+        values.put(COL_SAVED, saved ? 1 : 0);
+
+        if (ip != null && !ip.trim().isEmpty()) {
+            values.put(COL_IP, ip.trim());
+        }
+
+        if (name != null) {
+            String safeName = name.trim();
+            if (safeName.isEmpty()) {
+                values.putNull(COL_NAME);
+            } else {
+                values.put(COL_NAME, safeName);
+            }
+        }
+
+        if (existing != null) {
+            if (name == null) {
+                if (existing.getRawName() == null) {
+                    values.putNull(COL_NAME);
+                } else {
+                    values.put(COL_NAME, existing.getRawName());
+                }
+            }
+
+            values.put(COL_BANNED, existing.isBanned() ? 1 : 0);
+            values.put(COL_PROTECTED, existing.isProtected() ? 1 : 0);
+
+            long newFirstSeen = firstSeen > 0 ? firstSeen : existing.getFirstSeen();
+            long newLastSeen = lastSeen > 0 ? lastSeen : existing.getLastSeen();
+
+            values.put(COL_FIRST_SEEN, newFirstSeen);
+            values.put(COL_LAST_SEEN, newLastSeen);
+
+            db.update(TABLE, values, COL_MAC + "=?", new String[]{mac});
+        } else {
+            values.put(COL_MAC, mac);
+
+            if (!values.containsKey(COL_IP)) {
+                values.put(COL_IP, "");
+            }
+
+            if (!values.containsKey(COL_NAME)) {
+                values.putNull(COL_NAME);
+            }
+
+            values.put(COL_BANNED, 0);
+            values.put(COL_PROTECTED, 0);
+            values.put(COL_FIRST_SEEN, firstSeen > 0 ? firstSeen : 0);
+            values.put(COL_LAST_SEEN, lastSeen > 0 ? lastSeen : 0);
+
+            db.insertWithOnConflict(TABLE, null, values, SQLiteDatabase.CONFLICT_REPLACE);
+        }
     }
 
     private boolean deviceExists(SQLiteDatabase db, String mac) {

@@ -301,7 +301,21 @@
                 app:backgroundTint="@android:color/transparent"
                 app:strokeColor="@android:color/transparent"
                 app:cornerRadius="9dp" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_tab_saved"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:text="Saved"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:textColor="@color/tab_unselected_text"
+                app:backgroundTint="@android:color/transparent"
+                app:strokeColor="@android:color/transparent"
+                app:cornerRadius="9dp" />
         </com.google.android.material.button.MaterialButtonToggleGroup>
+
     </LinearLayout>
 
 
@@ -348,6 +362,17 @@
             android:clipToPadding="false"
             android:paddingBottom="8dp"
             android:scrollbars="vertical" />
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_saved"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/background"
+            android:nestedScrollingEnabled="true"
+            android:visibility="gone"
+            android:clipToPadding="false"
+            android:paddingBottom="8dp"
+            android:scrollbars="vertical" />
+
     </FrameLayout>
     <!-- ============ BOTTOM ACTION BAR (counts · restore all · ban all) ============ -->
     <LinearLayout

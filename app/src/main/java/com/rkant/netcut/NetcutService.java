@@ -560,14 +560,16 @@ public class NetcutService extends Service {
                 if (dbDevice != null) {
                     d.setBanned(dbDevice.isBanned());
                     d.setProtected(dbDevice.isProtected());
+                    d.setSaved(dbDevice.isSaved());
 
                     if (dbDevice.getRawName() != null && !dbDevice.getRawName().trim().isEmpty()) {
                         d.setName(dbDevice.getRawName());
                     }
-                } else {
-                    d.setBanned(false);
-                    d.setProtected(false);
-                }
+                }  else {
+                d.setBanned(false);
+                d.setProtected(false);
+                d.setSaved(false);
+            }
 
                 dbHelper.touchDevice(mac, d.getIp(), firstSeen, now);
 
@@ -611,7 +613,124 @@ public class NetcutService extends Service {
         if (scheduler == null || scheduler.isShutdown()) return;
         scheduler.execute(this::performScan);
     }
+    public List<Device> getSavedDevices() {
+        List<Device> savedDevices = dbHelper.getSavedDevices();
 
+        synchronized (currentScan) {
+            for (Device d : savedDevices) {
+                for (Device c : currentScan) {
+                    if (c.getMac() != null && c.getMac().equals(d.getMac())) {
+                        d.setOnline(true);
+
+                        if (c.getIp() != null && !c.getIp().trim().isEmpty()) {
+                            d.setIp(c.getIp());
+                        }
+
+                        if ((d.getRawName() == null || d.getRawName().trim().isEmpty())
+                                && c.getName() != null
+                                && !c.getName().trim().isEmpty()) {
+                            d.setName(c.getName());
+                        }
+
+                        break;
+                    }
+                }
+            }
+        }
+
+        return savedDevices;
+    }
+
+    public boolean isDeviceSaved(String mac) {
+        if (mac == null) return false;
+
+        mac = Device.normalizeMac(mac);
+        if (mac.isEmpty()) return false;
+
+        Device known = knownDevices.get(mac);
+        if (known != null && known.isSaved()) return true;
+
+        Device db = dbHelper.getDevice(mac);
+        return db != null && db.isSaved();
+    }
+
+    public boolean saveDevice(Device device) {
+        if (device == null) return false;
+
+        String mac = Device.normalizeMac(device.getMac());
+        if (mac.isEmpty()) return false;
+
+        Device db = dbHelper.getDevice(mac);
+        if (db != null && db.isSaved()) {
+            updateDeviceSavedStateInMemory(mac, true);
+            return false;
+        }
+
+        Device known = knownDevices.get(mac);
+
+        String ip = device.getIp();
+        if ((ip == null || ip.trim().isEmpty()) && known != null) {
+            ip = known.getIp();
+        }
+
+        String name = device.getRawName();
+        if (name == null && known != null) {
+            name = known.getRawName();
+        }
+
+        long firstSeen = device.getFirstSeen() > 0
+                ? device.getFirstSeen()
+                : (known != null ? known.getFirstSeen() : 0);
+
+        long lastSeen = device.getLastSeen() > 0
+                ? device.getLastSeen()
+                : (known != null ? known.getLastSeen() : System.currentTimeMillis());
+
+        dbHelper.setSaved(mac, ip, name, firstSeen, lastSeen, true);
+        updateDeviceSavedStateInMemory(mac, true);
+        notifyDataChanged();
+
+        return true;
+    }
+
+    public boolean removeSavedDevice(String mac) {
+        if (mac == null) return false;
+
+        mac = Device.normalizeMac(mac);
+        if (mac.isEmpty()) return false;
+
+        Device db = dbHelper.getDevice(mac);
+        if (db == null || !db.isSaved()) {
+            updateDeviceSavedStateInMemory(mac, false);
+            return false;
+        }
+
+        dbHelper.setSaved(mac, null, null, 0, 0, false);
+        updateDeviceSavedStateInMemory(mac, false);
+        notifyDataChanged();
+
+        return true;
+    }
+
+    private void updateDeviceSavedStateInMemory(String mac, boolean saved) {
+        if (mac == null) return;
+
+        mac = Device.normalizeMac(mac);
+
+        Device known = knownDevices.get(mac);
+        if (known != null) {
+            known.setSaved(saved);
+        }
+
+        synchronized (currentScan) {
+            for (Device d : currentScan) {
+                if (mac.equals(d.getMac())) {
+                    d.setSaved(saved);
+                    break;
+                }
+            }
+        }
+    }
     private void syncBannedDevices() {
         syncHandler.removeCallbacks(syncRunnable);
         syncHandler.postDelayed(syncRunnable, 300);
