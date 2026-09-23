@@ -10,7 +10,7 @@
     android:fitsSystemWindows="true"
     tools:context=".MainActivity">
 
-    <!-- ============ TOP ACTION BAR  ============ -->
+    <!-- ============ TOP ACTION BAR (blends like Settings header) ============ -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -102,11 +102,6 @@
         android:indeterminateTint="@color/primary"
         android:progressBackgroundTint="@android:color/transparent"
         android:visibility="gone" />
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="@color/divider" />
 
     <!-- ============ SERVICE STATUS STRIP ============ -->
     <com.google.android.material.card.MaterialCardView
@@ -257,72 +252,26 @@
             </LinearLayout>
         </FrameLayout>
 
-        <com.google.android.material.button.MaterialButtonToggleGroup
-            android:id="@+id/toggle_group"
+        <!-- ============ MATERIAL 3 TABS (replaces MaterialButtonToggleGroup) ============ -->
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tab_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@color/surface_variant"
-            android:padding="4dp"
-            app:singleSelection="true"
-            app:selectionRequired="true">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_tab_connected"
-                style="?attr/materialButtonOutlinedStyle"
-                android:layout_width="0dp"
-                android:layout_height="42dp"
-                android:layout_weight="1"
-                android:text="Connected"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:textColor="@color/tab_selected_text"
-                app:backgroundTint="@color/tab_selected_bg"
-                app:strokeColor="@android:color/transparent"
-                app:cornerRadius="10dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_tab_banned"
-                style="?attr/materialButtonOutlinedStyle"
-                android:layout_width="0dp"
-                android:layout_height="42dp"
-                android:layout_weight="1"
-                android:text="Banned"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:textColor="@color/tab_unselected_text"
-                app:backgroundTint="@android:color/transparent"
-                app:strokeColor="@android:color/transparent"
-                app:cornerRadius="10dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_tab_protected"
-                style="?attr/materialButtonOutlinedStyle"
-                android:layout_width="0dp"
-                android:layout_height="42dp"
-                android:layout_weight="1"
-                android:text="Protected"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:textColor="@color/tab_unselected_text"
-                app:backgroundTint="@android:color/transparent"
-                app:strokeColor="@android:color/transparent"
-                app:cornerRadius="10dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_tab_saved"
-                style="?attr/materialButtonOutlinedStyle"
-                android:layout_width="0dp"
-                android:layout_height="42dp"
-                android:layout_weight="1"
-                android:text="Saved"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:textColor="@color/tab_unselected_text"
-                app:backgroundTint="@android:color/transparent"
-                app:strokeColor="@android:color/transparent"
-                app:cornerRadius="10dp" />
-        </com.google.android.material.button.MaterialButtonToggleGroup>
+            app:tabMode="fixed"
+            app:tabGravity="fill"
+            app:tabIndicatorColor="@color/primary"
+            app:tabIndicatorHeight="3dp"
+            app:tabIndicatorFullWidth="true"
+            app:tabIndicatorAnimationMode="elastic"
+            app:tabSelectedTextColor="@color/primary"
+            app:tabTextColor="@color/text_secondary"
+            app:tabRippleColor="@color/ripple"
+            app:tabTextAppearance="@style/TextAppearance.AppCompat.Body1"
+            app:tabPaddingStart="2dp"
+            app:tabPaddingEnd="2dp" />
     </LinearLayout>
+
     <!-- ============ DEVICE LIST ============ -->
     <FrameLayout
         android:layout_width="match_parent"
