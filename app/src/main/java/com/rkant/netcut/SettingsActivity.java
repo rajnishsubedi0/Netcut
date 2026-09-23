@@ -14,6 +14,7 @@ import com.google.android.material.materialswitch.MaterialSwitch;
 public class SettingsActivity extends AppCompatActivity {
 
     private MaterialSwitch switchUnknownAlerts;
+    private MaterialSwitch switchAutoBan;
     private EditText etScanInterval;
 
     @Override
@@ -22,10 +23,24 @@ public class SettingsActivity extends AppCompatActivity {
         setContentView(R.layout.activity_settings);
 
         switchUnknownAlerts = findViewById(R.id.switch_unknown_alerts);
+        switchAutoBan = findViewById(R.id.switch_auto_ban);
         etScanInterval = findViewById(R.id.et_scan_interval);
+
         Button btnSave = findViewById(R.id.btn_save_settings);
 
         loadSettings();
+
+        switchAutoBan.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked && switchUnknownAlerts.isChecked()) {
+                switchUnknownAlerts.setChecked(false);
+            }
+        });
+
+        switchUnknownAlerts.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked && switchAutoBan.isChecked()) {
+                switchAutoBan.setChecked(false);
+            }
+        });
 
         btnSave.setOnClickListener(v -> saveSettings());
     }
@@ -33,9 +48,17 @@ public class SettingsActivity extends AppCompatActivity {
     private void loadSettings() {
         SharedPreferences prefs = getSharedPreferences(NetcutService.PREFS_NAME, MODE_PRIVATE);
 
+        boolean autoBan = prefs.getBoolean(NetcutService.KEY_AUTO_BAN_NEW_DEVICES, false);
         boolean alerts = prefs.getBoolean(NetcutService.KEY_UNKNOWN_ALERTS, true);
+
         int interval = prefs.getInt(NetcutService.KEY_SCAN_INTERVAL, 15);
 
+        // Enforce mutual exclusion
+        if (autoBan) {
+            alerts = false;
+        }
+
+        switchAutoBan.setChecked(autoBan);
         switchUnknownAlerts.setChecked(alerts);
         etScanInterval.setText(String.valueOf(interval));
     }
@@ -51,10 +74,23 @@ public class SettingsActivity extends AppCompatActivity {
         if (interval < 5) interval = 5;
         if (interval > 300) interval = 300;
 
+        boolean autoBan = switchAutoBan.isChecked();
+        boolean alerts = switchUnknownAlerts.isChecked();
+
+        // Enforce mutual exclusion again before saving
+        if (autoBan) {
+            alerts = false;
+        }
+
+        if (alerts) {
+            autoBan = false;
+        }
+
         SharedPreferences prefs = getSharedPreferences(NetcutService.PREFS_NAME, MODE_PRIVATE);
 
         prefs.edit()
-                .putBoolean(NetcutService.KEY_UNKNOWN_ALERTS, switchUnknownAlerts.isChecked())
+                .putBoolean(NetcutService.KEY_UNKNOWN_ALERTS, alerts)
+                .putBoolean(NetcutService.KEY_AUTO_BAN_NEW_DEVICES, autoBan)
                 .putInt(NetcutService.KEY_SCAN_INTERVAL, interval)
                 .apply();
 

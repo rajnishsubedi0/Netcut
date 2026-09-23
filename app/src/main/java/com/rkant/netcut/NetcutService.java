@@ -50,6 +50,7 @@ public class NetcutService extends Service {
 
     private static final String CHANNEL_ID = "NETCUT_CHANNEL";
     private static final String ALERT_CHANNEL_ID = "NETCUT_ALERT_CHANNEL";
+    public static final String KEY_AUTO_BAN_NEW_DEVICES = "auto_ban_new_devices";
 
     private static final long RESTORE_TIMEOUT_MS = 9000L;
     private static final long EXIT_TIMEOUT_MS = 3000L;
@@ -60,6 +61,7 @@ public class NetcutService extends Service {
     private volatile boolean baselineScanCompleted = false;
 
     private final AtomicBoolean isTransitioning = new AtomicBoolean(false);
+
 
     private final Handler syncHandler = new Handler(Looper.getMainLooper());
     private final Runnable syncRunnable = new Runnable() {
@@ -174,6 +176,17 @@ public class NetcutService extends Service {
     public IBinder onBind(Intent intent) {
         return binder;
     }
+    private String deviceLabel(String ip, String mac) {
+        if (ip != null && Device.isValidIpv4(ip)) {
+            return ip;
+        }
+
+        if (mac != null && !mac.trim().isEmpty()) {
+            return mac;
+        }
+
+        return "Unknown";
+    }
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
@@ -229,12 +242,20 @@ public class NetcutService extends Service {
             return;
         }
 
+        boolean wasActive = userRequestedRunning || isEngineRunning();
+
         userRequestedRunning = false;
         waitingForWifi = false;
         pendingStartAttempt = false;
 
         mainHandler.removeCallbacksAndMessages(null);
+
         killBinaryGracefully();
+
+        if (wasActive) {
+            SessionLogManager.getInstance().log("Service stopped");
+        }
+
         notifyDataChanged();
 
         mainHandler.postDelayed(() -> isTransitioning.set(false), 3000);
@@ -285,6 +306,7 @@ public class NetcutService extends Service {
                     @Override
                     public void onEvent(String event, JSONObject data) {
                         if ("SERVICE_STARTED".equals(event)) {
+                            SessionLogManager.getInstance().log("Service started");
                             waitingForWifi = false;
                             startPeriodicScan();
                             syncBannedDevices();
@@ -340,6 +362,7 @@ public class NetcutService extends Service {
 
     public void banDevice(String mac, String ip) {
         if (mac == null) return;
+
         mac = Device.normalizeMac(mac);
 
         if (isDeviceProtected(mac)) {
@@ -350,22 +373,33 @@ public class NetcutService extends Service {
 
         dbHelper.setBanned(mac, ip, true);
         updateDeviceBanStateInMemory(mac, ip, true);
+
+        SessionLogManager.getInstance().log("Device " + deviceLabel(ip, mac) + " banned");
+
         syncBannedDevices();
         notifyDataChanged();
     }
 
     public void unbanDevice(String mac) {
         if (mac == null) return;
+
         mac = Device.normalizeMac(mac);
+
+        Device known = knownDevices.get(mac);
+        String ip = known != null ? known.getIp() : null;
 
         dbHelper.setBanned(mac, null, false);
         updateDeviceBanStateInMemory(mac, null, false);
+
+        SessionLogManager.getInstance().log("Device " + deviceLabel(ip, mac) + " unbanned");
+
         syncBannedDevices();
         notifyDataChanged();
     }
 
     public void banDevices(List<Device> devices) {
         int skipped = 0;
+        int bannedCount = 0;
 
         for (Device d : devices) {
             String mac = Device.normalizeMac(d.getMac());
@@ -377,10 +411,15 @@ public class NetcutService extends Service {
 
             dbHelper.setBanned(mac, d.getIp(), true);
             updateDeviceBanStateInMemory(mac, d.getIp(), true);
+            bannedCount++;
         }
 
         if (skipped > 0) {
             notifyToast(skipped + " protected device(s) skipped");
+        }
+
+        if (bannedCount > 0) {
+            SessionLogManager.getInstance().log(bannedCount + " device(s) banned");
         }
 
         syncBannedDevices();
@@ -392,6 +431,10 @@ public class NetcutService extends Service {
             String mac = Device.normalizeMac(d.getMac());
             dbHelper.setBanned(mac, null, false);
             updateDeviceBanStateInMemory(mac, null, false);
+        }
+
+        if (devices != null && !devices.isEmpty()) {
+            SessionLogManager.getInstance().log(devices.size() + " device(s) unbanned");
         }
 
         syncBannedDevices();
@@ -411,12 +454,14 @@ public class NetcutService extends Service {
             }
         }
 
+        SessionLogManager.getInstance().log("All devices unbanned");
+
         syncBannedDevices();
         notifyDataChanged();
     }
-
     public void setProtected(String mac, boolean protect) {
         if (mac == null) return;
+
         mac = Device.normalizeMac(mac);
 
         dbHelper.setProtected(mac, protect);
@@ -427,6 +472,16 @@ public class NetcutService extends Service {
         }
 
         updateDeviceProtectedStateInMemory(mac, protect);
+
+        Device known = knownDevices.get(mac);
+        String ip = known != null ? known.getIp() : null;
+
+        if (protect) {
+            SessionLogManager.getInstance().log("Device " + deviceLabel(ip, mac) + " protected");
+        } else {
+            SessionLogManager.getInstance().log("Device " + deviceLabel(ip, mac) + " protection removed");
+        }
+
         syncBannedDevices();
         notifyDataChanged();
     }
@@ -529,12 +584,13 @@ public class NetcutService extends Service {
             long now = System.currentTimeMillis();
 
             SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-            boolean unknownAlertsEnabled = prefs.getBoolean(KEY_UNKNOWN_ALERTS, true);
 
-            // ✅ Allow alerts only if:
-            // 1. First baseline scan is already completed
-            // 2. User enabled new device alerts in Settings
-            boolean allowNewDeviceAlerts = baselineScanCompleted && unknownAlertsEnabled;
+            boolean unknownAlertsEnabled = prefs.getBoolean(KEY_UNKNOWN_ALERTS, true);
+            boolean autoBanEnabled = prefs.getBoolean(KEY_AUTO_BAN_NEW_DEVICES, false);
+
+            boolean allowNewDeviceAlerts = baselineScanCompleted
+                    && unknownAlertsEnabled
+                    && !autoBanEnabled;
 
             List<Device> scanned = NetworkScanner.scanArp(this);
 
@@ -560,25 +616,41 @@ public class NetcutService extends Service {
                 if (dbDevice != null) {
                     d.setBanned(dbDevice.isBanned());
                     d.setProtected(dbDevice.isProtected());
-                    d.setSaved(dbDevice.isSaved());
 
                     if (dbDevice.getRawName() != null && !dbDevice.getRawName().trim().isEmpty()) {
                         d.setName(dbDevice.getRawName());
                     }
-                }  else {
-                d.setBanned(false);
-                d.setProtected(false);
-                d.setSaved(false);
-            }
+                } else {
+                    d.setBanned(false);
+                    d.setProtected(false);
+                }
 
                 dbHelper.touchDevice(mac, d.getIp(), firstSeen, now);
 
-                // ✅ Show alert only from second scan onward
-                if (isNewDevice && allowNewDeviceAlerts) {
-                    showNewDeviceNotification(d);
+                if (isNewDevice && baselineScanCompleted) {
+                    String label = Device.isValidIpv4(d.getIp()) ? d.getIp() : mac;
 
-                    if (callback != null) {
-                        mainHandler.post(() -> callback.onNewDeviceDetected(d));
+                    SessionLogManager.getInstance().log("New device detected: " + label);
+
+                    if (autoBanEnabled) {
+                        if (!isDeviceProtected(mac)) {
+                            dbHelper.setBanned(mac, d.getIp(), true);
+                            updateDeviceBanStateInMemory(mac, d.getIp(), true);
+
+                            d.setBanned(true);
+
+                            SessionLogManager.getInstance()
+                                    .log("Device " + label + " auto-banned");
+                        } else {
+                            SessionLogManager.getInstance()
+                                    .log("Auto-ban skipped for protected device " + label);
+                        }
+                    } else if (allowNewDeviceAlerts) {
+                        showNewDeviceNotification(d);
+
+                        if (callback != null) {
+                            mainHandler.post(() -> callback.onNewDeviceDetected(d));
+                        }
                     }
                 }
 
@@ -589,6 +661,7 @@ public class NetcutService extends Service {
                 currentScan.clear();
 
                 List<Device> onlineOnly = new ArrayList<>();
+
                 for (Device d : knownDevices.values()) {
                     if (d.isOnline()) {
                         onlineOnly.add(d);
@@ -602,7 +675,6 @@ public class NetcutService extends Service {
             syncBannedDevices();
             notifyDataChanged();
 
-            // ✅ First scan completed. Next scan can trigger new-device alerts.
             baselineScanCompleted = true;
 
         } catch (Exception e) {

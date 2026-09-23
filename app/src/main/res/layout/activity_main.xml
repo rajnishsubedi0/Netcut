@@ -24,13 +24,7 @@
         android:paddingTop="6dp"
         android:paddingBottom="6dp">
 
-        <ImageView
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:src="@drawable/devices"
-            android:padding="5dp"
-            android:contentDescription="NetCut"
-            app:tint="@color/primary" />
+
 
         <TextView
             android:layout_width="0dp"
@@ -45,6 +39,21 @@
             android:layout_marginEnd="8dp" />
 
         <!-- ROUND PLAY / PAUSE BUTTON -->
+        <!-- SESSION LOG BUTTON -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_logs"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:contentDescription="Session logs"
+            android:insetLeft="0dp"
+            android:insetTop="0dp"
+            android:insetRight="0dp"
+            android:insetBottom="0dp"
+            app:icon="@android:drawable/ic_menu_recent_history"
+            app:iconSize="20dp"
+            app:iconTint="@color/text_secondary"
+            android:layout_marginEnd="2dp" />
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_start"
             style="@style/Widget.Material3.Button.IconButton.Filled"

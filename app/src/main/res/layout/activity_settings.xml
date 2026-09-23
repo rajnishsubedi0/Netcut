@@ -69,10 +69,11 @@
             </LinearLayout>
 
             <!-- ========== ALERTS SECTION ========== -->
+            <!-- ========== ALERTS & AUTOMATION SECTION ========== -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="ALERTS"
+                android:text="ALERTS &amp; AUTOMATION"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:textColor="@color/text_tertiary"
@@ -110,14 +111,41 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="The first scan after service start is ignored. Alerts are shown only for devices found in later scans."
+                        android:text="Show an alert when a new device is detected. Enabling this disables Auto Ban."
                         android:textSize="13sp"
                         android:textColor="@color/text_secondary"
                         android:layout_marginTop="10dp"
                         android:lineSpacingExtra="4dp" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="@color/divider"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="16dp" />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/switch_auto_ban"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Auto Ban New Devices"
+                        android:textSize="16sp"
+                        android:textColor="@color/text_primary"
+                        android:fontFamily="sans-serif-bold"
+                        app:thumbTint="@color/primary"
+                        app:trackTint="@color/surface_variant" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Automatically ban newly detected devices. Enabling this disables New Device Alerts."
+                        android:textSize="13sp"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginTop="10dp"
+                        android:lineSpacingExtra="4dp" />
+
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
-
             <!-- ========== SCAN SECTION ========== -->
             <TextView
                 android:layout_width="wrap_content"
@@ -181,7 +209,6 @@
                             android:layout_width="match_parent"
                             android:layout_height="54dp"
                             android:inputType="number"
-                            android:hint="15"
                             android:textSize="16sp"
                             android:textColor="@color/text_primary"
                             android:textColorHint="@color/text_tertiary" />

@@ -26,6 +26,7 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ArrayAdapter;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
@@ -91,6 +92,7 @@ public class MainActivity extends AppCompatActivity
     private MaterialButton btnTabSaved;
 
     private MaterialButton btnSettings;
+    private MaterialButton btnLogs;
 
     private View greenRed;
     private LinearLayout llSelectionActions;
@@ -158,6 +160,7 @@ public class MainActivity extends AppCompatActivity
         btnStart = findViewById(R.id.btn_start);
         btnBanAll = findViewById(R.id.btn_ban_all);
         btnRestoreAll = findViewById(R.id.btn_restore_all);
+        btnLogs = findViewById(R.id.btn_logs);
 
         btnTabConnected = findViewById(R.id.btn_tab_connected);
         btnTabBanned = findViewById(R.id.btn_tab_banned);
@@ -178,6 +181,10 @@ public class MainActivity extends AppCompatActivity
         scanProgress = findViewById(R.id.scan_progress);
 
         searchContainer = findViewById(R.id.search_container);
+
+        if (btnLogs != null) {
+            btnLogs.setOnClickListener(v -> showSessionLogs());
+        }
 
         swipeRefresh.setDistanceToTriggerSync(550);
         swipeRefresh.setColorSchemeColors(getColor(R.color.primary));
@@ -1588,5 +1595,33 @@ public class MainActivity extends AppCompatActivity
         builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
 
         builder.show();
+    }
+    private void showSessionLogs() {
+        List<String> logs = SessionLogManager.getInstance().getLogs();
+
+        if (logs.isEmpty()) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Session Logs")
+                    .setMessage("No logs yet.")
+                    .setPositiveButton("Close", null)
+                    .show();
+            return;
+        }
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_list_item_1,
+                logs
+        );
+
+        new AlertDialog.Builder(this)
+                .setTitle("Session Logs")
+                .setAdapter(adapter, null)
+                .setPositiveButton("Close", null)
+                .setNeutralButton("Clear", (dialog, which) -> {
+                    SessionLogManager.getInstance().clear();
+                    Toast.makeText(this, "Logs cleared", Toast.LENGTH_SHORT).show();
+                })
+                .show();
     }
 }
