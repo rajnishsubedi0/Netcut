@@ -19,21 +19,8 @@
         android:paddingStart="20dp"
         android:paddingEnd="20dp"
         android:paddingTop="24dp"
-        android:paddingBottom="16dp">
+        android:paddingBottom="20dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_back"
-            style="@style/Widget.Material3.Button.IconButton"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:contentDescription="Back"
-            android:insetLeft="0dp"
-            android:insetTop="0dp"
-            android:insetRight="0dp"
-            android:insetBottom="0dp"
-            app:icon="@drawable/ic_arrow_back"
-            app:iconSize="24dp"
-            app:iconTint="@color/text_primary" />
 
         <TextView
             android:layout_width="0dp"

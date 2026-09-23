@@ -35,7 +35,7 @@ public class LogsActivity extends AppCompatActivity {
         });
 
         rvLogs = findViewById(R.id.rv_logs);
-        MaterialButton btnBack = findViewById(R.id.btn_back);
+
         MaterialButton btnClear = findViewById(R.id.btn_clear_logs);
 
         rvLogs.setLayoutManager(new LinearLayoutManager(this));
@@ -44,12 +44,7 @@ public class LogsActivity extends AppCompatActivity {
 
         loadLogs();
 
-        btnBack.setOnClickListener(v -> finish());
-        btnClear.setOnClickListener(v -> {
-            SessionLogManager.getInstance().clear();
-            loadLogs();
-            Toast.makeText(this, "Logs cleared", Toast.LENGTH_SHORT).show();
-        });
+
     }
 
     private void loadLogs() {
