@@ -6,6 +6,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 import android.widget.Toast;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
@@ -13,7 +14,9 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
 import com.google.android.material.button.MaterialButton;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -35,16 +38,16 @@ public class LogsActivity extends AppCompatActivity {
         });
 
         rvLogs = findViewById(R.id.rv_logs);
-
         MaterialButton btnClear = findViewById(R.id.btn_clear_logs);
 
         rvLogs.setLayoutManager(new LinearLayoutManager(this));
+
         adapter = new LogsAdapter(logsList);
         rvLogs.setAdapter(adapter);
 
         loadLogs();
 
-
+        btnClear.setOnClickListener(v -> clearLogs());
     }
 
     private void loadLogs() {
@@ -53,7 +56,14 @@ public class LogsActivity extends AppCompatActivity {
         adapter.notifyDataSetChanged();
     }
 
+    private void clearLogs() {
+        SessionLogManager.getInstance().clear();
+        loadLogs();
+        Toast.makeText(this, "Logs cleared", Toast.LENGTH_SHORT).show();
+    }
+
     private static class LogsAdapter extends RecyclerView.Adapter<LogsAdapter.ViewHolder> {
+
         private final List<String> logs;
 
         public LogsAdapter(List<String> logs) {
@@ -80,6 +90,7 @@ public class LogsActivity extends AppCompatActivity {
 
         static class ViewHolder extends RecyclerView.ViewHolder {
             TextView tvLog;
+
             ViewHolder(View v) {
                 super(v);
                 tvLog = v.findViewById(R.id.tv_log_text);
