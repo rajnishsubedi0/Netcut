@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@+id/menu_scan" android:title="Scan now" />
-    <item android:id="@+id/menu_settings" android:title="Settings" />
+    <item
+        android:id="@+id/menu_scan"
+        android:icon="@drawable/ic_scan"
+        android:title="Scan Now" />
+    <item
+        android:id="@+id/menu_settings"
+        android:icon="@drawable/ic_settings_vector"
+        android:title="Settings" />
 </menu>

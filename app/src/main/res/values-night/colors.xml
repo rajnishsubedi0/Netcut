@@ -69,4 +69,6 @@
     <color name="success_light">#1A2E25</color>
     <color name="success_dark">#34D399</color>
     <color name="error_light">#2A1B24</color>
+    <color name="selection_bg">#16324A</color>
+    <color name="selection_border">#38BDF8</color>
 </resources>

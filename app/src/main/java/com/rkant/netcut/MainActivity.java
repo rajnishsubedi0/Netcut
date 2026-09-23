@@ -8,6 +8,7 @@ import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
@@ -19,7 +20,9 @@ import android.os.PowerManager;
 import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.ContextThemeWrapper;
 import android.view.LayoutInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -372,12 +375,23 @@ public class MainActivity extends AppCompatActivity
     }
 
     private void showOverflowMenu(View anchor) {
-        PopupMenu popup = new PopupMenu(this, anchor);
+        // Inflate the popup with our custom overlay theme
+        Context themed = new ContextThemeWrapper(this, R.style.Theme_Netcut_Popup);
+        PopupMenu popup = new PopupMenu(themed, anchor);
         popup.getMenuInflater().inflate(R.menu.menu_main, popup.getMenu());
+
+        // Tint menu icons to match the current theme (light/dark)
+        for (int i = 0; i < popup.getMenu().size(); i++) {
+            MenuItem item = popup.getMenu().getItem(i);
+            if (item.getIcon() != null) {
+                Drawable icon = item.getIcon().mutate();
+                icon.setTint(ContextCompat.getColor(themed, R.color.text_secondary));
+                item.setIcon(icon);
+            }
+        }
 
         popup.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
-
             if (id == R.id.menu_settings) {
                 startActivity(new Intent(this, SettingsActivity.class));
                 return true;
@@ -385,13 +399,10 @@ public class MainActivity extends AppCompatActivity
                 triggerScan(true);
                 return true;
             }
-
             return false;
         });
-
         popup.show();
     }
-
     private void showLoader() {
         if (progressLoading != null) progressLoading.setVisibility(View.VISIBLE);
     }

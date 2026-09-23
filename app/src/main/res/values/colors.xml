@@ -80,4 +80,6 @@
     <color name="success_light">#E4F5EB</color>
     <color name="success_dark">#16A34A</color>
     <color name="error_light">#FDE9E9</color>
+    <color name="selection_bg">#CFE4FB</color>
+    <color name="selection_border">#2E9EF5</color>
 </resources>

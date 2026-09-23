@@ -1,6 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_selected="true" android:drawable="@color/surface_variant" />
-    <item android:state_activated="true" android:drawable="@color/surface_variant" />
-    <item android:drawable="@color/background" />
+
+    <!-- ===== SELECTED (long-press multi-select) ===== -->
+    <item android:state_activated="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/selection_bg" />
+            <stroke
+                android:width="2dp"
+                android:color="@color/selection_border" />
+        </shape>
+    </item>
+
+    <item android:state_selected="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/selection_bg" />
+            <stroke
+                android:width="2dp"
+                android:color="@color/selection_border" />
+        </shape>
+    </item>
+
+    <!-- ===== PRESSED FEEDBACK ===== -->
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/ripple" />
+        </shape>
+    </item>
+
+    <!-- ===== DEFAULT ROW ===== -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/background" />
+        </shape>
+    </item>
 </selector>
