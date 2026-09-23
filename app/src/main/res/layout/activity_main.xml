@@ -50,7 +50,7 @@
             android:insetTop="0dp"
             android:insetRight="0dp"
             android:insetBottom="0dp"
-            app:icon="@android:drawable/ic_menu_recent_history"
+            app:icon="@drawable/ic_logs"
             app:iconSize="20dp"
             app:iconTint="@color/text_secondary"
             android:layout_marginEnd="2dp" />

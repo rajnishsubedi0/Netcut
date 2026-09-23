@@ -6,6 +6,10 @@ import android.os.Bundle;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
+import androidx.activity.EdgeToEdge;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -20,6 +24,7 @@ public class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        EdgeToEdge.enable(this);
         setContentView(R.layout.activity_settings);
 
         switchUnknownAlerts = findViewById(R.id.switch_unknown_alerts);
@@ -27,8 +32,15 @@ public class SettingsActivity extends AppCompatActivity {
         etScanInterval = findViewById(R.id.et_scan_interval);
 
         Button btnSave = findViewById(R.id.btn_save_settings);
+        switchUnknownAlerts = findViewById(R.id.switch_unknown_alerts);
 
         loadSettings();
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content), (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            return insets;
+        });
+
 
         switchAutoBan.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked && switchUnknownAlerts.isChecked()) {

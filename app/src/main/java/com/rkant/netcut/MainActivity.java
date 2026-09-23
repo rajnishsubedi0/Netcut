@@ -46,6 +46,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -424,8 +425,8 @@ public class MainActivity extends AppCompatActivity
 
             mainHandler.post(() -> {
                 if (!rooted && !isFinishing()) {
-                    new AlertDialog.Builder(this)
-                            .setTitle("⚠ Root Access Required")
+                    new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog)
+                            .setTitle("Root Access Required")
                             .setMessage("This app REQUIRES root to function.\n\n" +
                                     "Please grant root (Magisk/SuperSU), then retry.")
                             .setCancelable(false)
@@ -442,8 +443,8 @@ public class MainActivity extends AppCompatActivity
         String arch = bm.detectArchitecture();
 
         if (arch == null) {
-            new AlertDialog.Builder(this)
-                    .setTitle("❌ Unsupported Architecture")
+            new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog)
+                    .setTitle("Unsupported Architecture")
                     .setMessage("This device uses an unsupported CPU architecture.\n\n" +
                             "Detected ABIs: " + java.util.Arrays.toString(Build.SUPPORTED_ABIS))
                     .setCancelable(false)
@@ -485,8 +486,8 @@ public class MainActivity extends AppCompatActivity
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         prefs.edit().putLong(KEY_BATTERY_PROMPT_LAST_TIME, System.currentTimeMillis()).apply();
 
-        new AlertDialog.Builder(this)
-                .setTitle("🔋 Disable Battery Optimization")
+        new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog)
+                .setTitle("Disable Battery Optimization")
                 .setMessage("This app must run continuously to keep devices banned.\n\n" +
                         "Tap 'Allow Now' to exclude this app from battery optimization.")
                 .setCancelable(false)
@@ -532,7 +533,7 @@ public class MainActivity extends AppCompatActivity
 
         if (hint != null) {
             String finalHint = hint;
-            new AlertDialog.Builder(this)
+            new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog)
                     .setTitle("Device-Specific Setup")
                     .setMessage(finalHint)
                     .setPositiveButton("Got it", (d, w) ->
@@ -617,7 +618,7 @@ public class MainActivity extends AppCompatActivity
 
         int bannedCount = service.getBannedDevices().size();
 
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog)
                 .setTitle("Restore All Devices?")
                 .setMessage("This will unban " + bannedCount +
                         " banned device(s) and restore network access.\n\nAre you sure?")
@@ -646,7 +647,7 @@ public class MainActivity extends AppCompatActivity
             }
         }
 
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog)
                 .setTitle("Ban All Devices?")
                 .setMessage("Ban " + online + " online device(s).\n" +
                         protect + " protected device(s) will be skipped.\n\nAre you sure?")
@@ -922,8 +923,8 @@ public class MainActivity extends AppCompatActivity
         runOnUiThread(() -> {
             if (isFinishing()) return;
 
-            new AlertDialog.Builder(this)
-                    .setTitle("🆕 New Device Detected")
+            new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog)
+                    .setTitle("New Device Detected")
                     .setMessage("A new device joined the network.\n\n" +
                             "IP: " + device.getIp() + "\n" +
                             "MAC: " + device.getMac())
@@ -983,7 +984,7 @@ public class MainActivity extends AppCompatActivity
     private void confirmUnbanDevice(Device device) {
         if (!bound || service == null || device == null) return;
 
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog)
                 .setTitle("Unban Device?")
                 .setMessage("IP: " + safeText(device.getIp()) +
                         "\nMAC: " + safeText(device.getMac()) +
@@ -1007,7 +1008,7 @@ public class MainActivity extends AppCompatActivity
     private void confirmRemoveProtection(Device device) {
         if (!bound || service == null || device == null) return;
 
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog)
                 .setTitle("Remove Protection?")
                 .setMessage("IP: " + safeText(device.getIp()) +
                         "\nMAC: " + safeText(device.getMac()) +
@@ -1031,7 +1032,7 @@ public class MainActivity extends AppCompatActivity
     private void confirmRemoveSaved(Device device) {
         if (!bound || service == null || device == null) return;
 
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog)
                 .setTitle("Remove from Saved?")
                 .setMessage("IP: " + safeText(device.getIp()) +
                         "\nMAC: " + safeText(device.getMac()) +
@@ -1058,7 +1059,7 @@ public class MainActivity extends AppCompatActivity
     private void confirmUnprotectAndBan(Device device) {
         if (!bound || service == null || device == null) return;
 
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog)
                 .setTitle("Unprotect & Ban?")
                 .setMessage("IP: " + safeText(device.getIp()) +
                         "\nMAC: " + safeText(device.getMac()) +
@@ -1082,7 +1083,7 @@ public class MainActivity extends AppCompatActivity
     private void confirmUnbanAndProtect(Device device) {
         if (!bound || service == null || device == null) return;
 
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog)
                 .setTitle("Unban & Protect?")
                 .setMessage("IP: " + safeText(device.getIp()) +
                         "\nMAC: " + safeText(device.getMac()) +
@@ -1568,7 +1569,7 @@ public class MainActivity extends AppCompatActivity
     // ──────────────────────────────────────────────
 
     private void showRenameDialog(Device device) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        AlertDialog.Builder builder = new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog);
         builder.setTitle("Edit Device Name");
 
         final EditText input = new EditText(this);
@@ -1597,31 +1598,6 @@ public class MainActivity extends AppCompatActivity
         builder.show();
     }
     private void showSessionLogs() {
-        List<String> logs = SessionLogManager.getInstance().getLogs();
-
-        if (logs.isEmpty()) {
-            new AlertDialog.Builder(this)
-                    .setTitle("Session Logs")
-                    .setMessage("No logs yet.")
-                    .setPositiveButton("Close", null)
-                    .show();
-            return;
-        }
-
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_list_item_1,
-                logs
-        );
-
-        new AlertDialog.Builder(this)
-                .setTitle("Session Logs")
-                .setAdapter(adapter, null)
-                .setPositiveButton("Close", null)
-                .setNeutralButton("Clear", (dialog, which) -> {
-                    SessionLogManager.getInstance().clear();
-                    Toast.makeText(this, "Logs cleared", Toast.LENGTH_SHORT).show();
-                })
-                .show();
+        startActivity(new Intent(this, LogsActivity.class));
     }
 }
