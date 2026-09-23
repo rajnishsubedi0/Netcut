@@ -17,9 +17,9 @@
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:paddingStart="20dp"
-            android:paddingTop="24dp"
+            android:paddingTop="30dp"
             android:paddingEnd="20dp"
-            android:paddingBottom="12dp"
+            android:paddingBottom="22dp"
             android:background="@color/background"
             android:elevation="4dp">
 
@@ -39,14 +39,7 @@
                     android:fontFamily="sans-serif-black"
                     android:letterSpacing="-0.02" />
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Configure scanning and alerts"
-                    android:textSize="14sp"
-                    android:textColor="@color/text_secondary"
-                    android:fontFamily="sans-serif-medium"
-                    android:layout_marginTop="2dp" />
+
             </LinearLayout>
 
             <com.google.android.material.button.MaterialButton

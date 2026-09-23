@@ -46,6 +46,7 @@ public class NetcutService extends Service {
     public static final String ACTION_START = "com.rkant.netcut.ACTION_START";
     public static final String ACTION_STOP = "com.rkant.netcut.ACTION_STOP";
     public static final String ACTION_RESTORE = "com.rkant.netcut.ACTION_RESTORE";
+    public static final String ACTION_BAN_ALL = "com.rkant.netcut.ACTION_BAN_ALL";
     public static final String ACTION_APPLY_SETTINGS = "com.rkant.netcut.ACTION_APPLY_SETTINGS";
 
     private static final String CHANNEL_ID = "NETCUT_CHANNEL";
@@ -151,6 +152,9 @@ public class NetcutService extends Service {
                         stopSelf();
                     }
                     break;
+                case ACTION_BAN_ALL:
+                    banAllOnlineDevices();
+                    break;
 
                 case ACTION_APPLY_SETTINGS:
                     if (userRequestedRunning && isEngineRunning()) {
@@ -187,7 +191,28 @@ public class NetcutService extends Service {
 
         return "Unknown";
     }
-
+    /**
+     * Bans every currently online, unprotected device.
+     * Used by the "Ban All" notification action.
+     */
+    public void banAllOnlineDevices() {
+        List<Device> toBan = new ArrayList<>();
+        synchronized (currentScan) {
+            for (Device d : currentScan) {
+                if (d.isOnline() && !d.isProtected()) {
+                    toBan.add(d);
+                }
+            }
+        }
+        if (toBan.isEmpty()) {
+            notifyToast("No online unprotected devices to ban");
+            return;
+        }
+        // banDevices() already: skips protected, writes DB, updates memory,
+        // logs to SessionLogManager, syncs the Rust engine and refreshes the UI
+        banDevices(toBan);
+        notifyToast("Banning " + toBan.size() + " online device(s)...");
+    }
     @Override
     public void onTaskRemoved(Intent rootIntent) {
         userRequestedRunning = false;
@@ -1173,6 +1198,11 @@ public class NetcutService extends Service {
                                     android.R.drawable.ic_menu_revert,
                                     "Restore All",
                                     serviceActionIntent(ACTION_RESTORE)
+                            )
+                            .addAction(                                  // ← ADD THIS ACTION
+                                    R.drawable.ic_ban_all,
+                                    "Ban All",
+                                    serviceActionIntent(ACTION_BAN_ALL)
                             );
 
             Notification notification = builder.build();

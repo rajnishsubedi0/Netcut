@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import android.view.inputmethod.InputMethodManager;
 
 public class MainActivity extends AppCompatActivity
         implements DeviceAdapter.OnDeviceActionListener,
@@ -116,6 +117,7 @@ public class MainActivity extends AppCompatActivity
     private View searchContainer;
 
     private OnBackPressedCallback selectionBackCallback;
+    private OnBackPressedCallback searchBackCallback;
 
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -282,6 +284,10 @@ public class MainActivity extends AppCompatActivity
             public void afterTextChanged(Editable s) {
                 String q = s == null ? "" : s.toString();
 
+                if (searchBackCallback != null) {
+                    searchBackCallback.setEnabled(q.length() > 0);
+                }
+
                 connectedAdapter.setFilter(q);
                 bannedAdapter.setFilter(q);
 
@@ -294,6 +300,26 @@ public class MainActivity extends AppCompatActivity
                 }
             }
         });
+
+        // ── BACK PRESS: clear search text instead of exiting app ──
+        searchBackCallback = new OnBackPressedCallback(false) {
+            @Override
+            public void handleOnBackPressed() {
+                if (etSearch != null) {
+                    etSearch.setText("");
+                    InputMethodManager imm = (InputMethodManager)
+                            getSystemService(Context.INPUT_METHOD_SERVICE);
+                    if (imm != null) {
+                        imm.hideSoftInputFromWindow(etSearch.getWindowToken(), 0);
+                    }
+                    etSearch.clearFocus();
+                }
+                setEnabled(false);
+            }
+        };
+        getOnBackPressedDispatcher().addCallback(this, searchBackCallback);
+
+
 
         selectionBackCallback = new OnBackPressedCallback(false) {
             @Override
@@ -320,8 +346,12 @@ public class MainActivity extends AppCompatActivity
     protected void onResume() {
         super.onResume();
         if (ThemeManager.getSavedMode(this) != appliedThemeMode) {
-            recreate();   // reload UI with new theme
+            recreate();
             return;
+        }
+        // ← ADD THESE 3 LINES
+        if (searchBackCallback != null && etSearch != null) {
+            searchBackCallback.setEnabled(etSearch.getText() != null && etSearch.getText().length() > 0);
         }
         mainHandler.postDelayed(() -> {
             if (!isFinishing()) checkBatteryOptimization();
