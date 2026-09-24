@@ -60,18 +60,33 @@ public class RustBridge {
     public void start(String binaryPath, String iface, String gateway, BridgeEventListener listener) {
         this.listener = listener;
         try {
-            if (RootManager.execute("getenforce", 3000).trim().equalsIgnoreCase("Enforcing")) {
-                RootManager.execute("setenforce 0", 3000);
+
+            RootManager.execute("magiskpolicy --live \"allow magisk self:packet_socket { create read write bind ioctl }\"", 2000);
+            RootManager.execute("magiskpolicy --live \"allow magisk self:capability net_raw\"", 2000);
+            RootManager.execute("magiskpolicy --live \"allow su self:packet_socket { create read write bind ioctl }\"", 2000);
+            RootManager.execute("magiskpolicy --live \"allow su self:capability net_raw\"", 2000);
+
+            String tmpBinPath = "/data/local/tmp/netcut_engine";
+            String setupScript =
+                    "cp -f '" + binaryPath + "' '" + tmpBinPath + "' 2>/dev/null && " +
+                            "chmod 755 '" + tmpBinPath + "' && " +
+                            "chcon u:object_r:system_file:s0 '" + tmpBinPath + "' 2>/dev/null; " +
+                            "chcon u:object_r:magisk_file:s0 '" + tmpBinPath + "' 2>/dev/null; " +
+                            "chcon u:object_r:shell_exec:s0 '" + tmpBinPath + "' 2>/dev/null; " +
+                            "echo 'READY'";
+
+            String setupResult = RootManager.execute(setupScript, 5000);
+            if (setupResult == null || !setupResult.contains("READY")) {
+                Log.w(TAG, "Failed to copy binary to /data/local/tmp, falling back to app dir.");
+                tmpBinPath = binaryPath;
             }
 
-            // Use exec to replace shell with binary
-            String cmd = "exec '" + binaryPath + "' '" + iface + "' '" + gateway + "'";
-            Log.i(TAG, "Starting binary: " + cmd);
+            String cmd = "exec '" + tmpBinPath + "' '" + iface + "' '" + gateway + "'";
+            Log.i(TAG, "Starting binary in Enforcing mode: " + cmd);
 
             ProcessBuilder pb = new ProcessBuilder("su", "-c", cmd);
             pb.redirectErrorStream(true);
             process = pb.start();
-
             stdin = new DataOutputStream(process.getOutputStream());
             stdout = new BufferedReader(new InputStreamReader(process.getInputStream()));
             executor = Executors.newSingleThreadExecutor();
@@ -83,7 +98,6 @@ public class RustBridge {
             isRunning = false;
         }
     }
-
     /**
      * ✅ CRITICAL FIX: Graceful stop with proper wait for restore.
      * Waits up to restoreTimeoutMs for RESTORE_COMPLETED, then exitTimeoutMs for exit.
