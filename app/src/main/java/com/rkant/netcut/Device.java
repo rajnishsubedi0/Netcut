@@ -4,6 +4,7 @@ public class Device {
     private String mac;
     private String ip;
     private String name;
+    private String vendor;
     private boolean isBanned;
     private boolean isOnline;
     private boolean isProtected;
@@ -59,6 +60,15 @@ public class Device {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    /** Hardware vendor/brand inferred from the MAC (OUI), or null if unknown. */
+    public String getVendor() {
+        return vendor;
+    }
+
+    public void setVendor(String vendor) {
+        this.vendor = vendor;
     }
 
     public boolean isBanned() {

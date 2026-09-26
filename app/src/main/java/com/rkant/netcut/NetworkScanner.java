@@ -14,9 +14,16 @@ import java.net.NetworkInterface;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class NetworkScanner {
     private static final String TAG = "NetworkScanner";
+
+    // Overall deadline for the parallel reverse-DNS pass so a slow or missing
+    // PTR record can never stall a scan.
+    private static final long HOSTNAME_LOOKUP_TIMEOUT_MS = 1500;
 
     public static String getGatewayIp(Context context) {
         // Method 1: ConnectivityManager (more reliable)
@@ -178,6 +185,48 @@ public class NetworkScanner {
                 devices.add(new Device(mac, ip, "", false, true));
             }
         }
+
+        resolveHostnames(devices);
         return devices;
+    }
+
+    /**
+     * Best-effort reverse-DNS pass that gives each device a human-readable
+     * hostname when the local network (router/DHCP) publishes one. Lookups run
+     * in parallel with a bounded overall deadline, so a slow or missing PTR
+     * record never stalls the scan. Devices whose hostname cannot be resolved
+     * are left untouched (their name stays empty and the UI falls back to the
+     * MAC vendor).
+     */
+    private static void resolveHostnames(List<Device> devices) {
+        if (devices == null || devices.isEmpty()) return;
+
+        ExecutorService pool = Executors.newFixedThreadPool(Math.min(16, devices.size()));
+        for (Device d : devices) {
+            pool.execute(() -> {
+                String ip = d.getIp();
+                if (!Device.isValidIpv4(ip)) return;
+                try {
+                    String host = InetAddress.getByName(ip).getCanonicalHostName();
+                    // A failed lookup returns the IP text unchanged; ignore that.
+                    if (host != null && !host.isEmpty() && !host.equalsIgnoreCase(ip)) {
+                        // Drop any domain suffix, e.g. "Galaxy-S21.lan" -> "Galaxy-S21".
+                        int dot = host.indexOf('.');
+                        String clean = dot > 0 ? host.substring(0, dot) : host;
+                        if (!clean.isEmpty()) d.setName(clean);
+                    }
+                } catch (Exception ignored) {
+                    // No PTR record / lookup failed: leave the name empty.
+                }
+            });
+        }
+
+        pool.shutdown();
+        try {
+            pool.awaitTermination(HOSTNAME_LOOKUP_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        pool.shutdownNow();
     }
 }
