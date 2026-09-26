@@ -113,6 +113,13 @@ public class MainActivity extends AppCompatActivity
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
+    // New-device alerts are coalesced so a burst of discoveries shows a single
+    // dialog instead of a stack of overlapping popups (one per device).
+    private static final long NEW_DEVICE_ALERT_DEBOUNCE_MS = 600;
+    private final List<Device> pendingNewDevices = new ArrayList<>();
+    private AlertDialog newDeviceDialog;
+    private final Runnable showNewDevicesRunnable = this::showPendingNewDevicesDialog;
+
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder binder) {
@@ -346,6 +353,11 @@ public class MainActivity extends AppCompatActivity
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        mainHandler.removeCallbacks(showNewDevicesRunnable);
+        if (newDeviceDialog != null && newDeviceDialog.isShowing()) {
+            newDeviceDialog.dismiss();
+        }
+        newDeviceDialog = null;
         ioExecutor.shutdownNow();
     }
 
@@ -914,10 +926,42 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     public void onNewDeviceDetected(Device device) {
+        if (device == null) return;
         runOnUiThread(() -> {
-            if (isFinishing()) return;
+            if (isFinishing() || isDestroyed()) return;
 
-            new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog)
+            // Coalesce a burst of discoveries: collect the devices and show a
+            // single dialog shortly after the last one arrives, so 10 new
+            // devices produce 1 popup instead of 10 stacked ones.
+            String mac = device.getMac();
+            boolean alreadyPending = false;
+            for (Device pending : pendingNewDevices) {
+                if (pending.getMac() != null && pending.getMac().equalsIgnoreCase(mac)) {
+                    alreadyPending = true;
+                    break;
+                }
+            }
+            if (!alreadyPending) pendingNewDevices.add(device);
+
+            mainHandler.removeCallbacks(showNewDevicesRunnable);
+            mainHandler.postDelayed(showNewDevicesRunnable, NEW_DEVICE_ALERT_DEBOUNCE_MS);
+        });
+    }
+
+    private void showPendingNewDevicesDialog() {
+        if (isFinishing() || isDestroyed() || pendingNewDevices.isEmpty()) return;
+
+        // Replace any alert still on screen so popups never stack.
+        if (newDeviceDialog != null && newDeviceDialog.isShowing()) {
+            newDeviceDialog.dismiss();
+        }
+
+        final List<Device> devices = new ArrayList<>(pendingNewDevices);
+        pendingNewDevices.clear();
+
+        if (devices.size() == 1) {
+            Device device = devices.get(0);
+            newDeviceDialog = new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog)
                     .setTitle("New Device Detected")
                     .setMessage("A new device joined the network.\n\n" +
                             "IP: " + device.getIp() + "\n" +
@@ -932,7 +976,30 @@ public class MainActivity extends AppCompatActivity
                     })
                     .setNegativeButton("Ignore", null)
                     .show();
-        });
+            return;
+        }
+
+        StringBuilder message = new StringBuilder(devices.size() + " new devices joined the network.\n");
+        for (Device device : devices) {
+            message.append("\n• ")
+                    .append(safeText(device.getIp()))
+                    .append("  (")
+                    .append(safeText(device.getMac()))
+                    .append(")");
+        }
+
+        newDeviceDialog = new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog)
+                .setTitle(devices.size() + " New Devices Detected")
+                .setMessage(message.toString())
+                .setPositiveButton("Ban all", (d, w) -> {
+                    if (bound && service != null) {
+                        for (Device device : devices) {
+                            service.banDevice(device.getMac(), device.getIp());
+                        }
+                    }
+                })
+                .setNegativeButton("Ignore", null)
+                .show();
     }
 
     private String safeText(String value) {
