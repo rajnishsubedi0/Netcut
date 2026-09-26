@@ -149,8 +149,12 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
 
         holder.tvName.setText(displayName);
 
-        // Brand inferred from the MAC (OUI), or a hint when the MAC is randomized.
-        String vendor = OuiLookup.describe(d.getMac());
+        // Brand: prefer the value resolved during the scan (offline table or
+        // online lookup); fall back to the offline table for safety.
+        String vendor = d.getVendor();
+        if (vendor == null || vendor.isEmpty()) {
+            vendor = OuiLookup.describe(d.getMac());
+        }
         if (vendor != null && !vendor.isEmpty()) {
             holder.tvVendor.setText(vendor);
             holder.tvVendor.setVisibility(View.VISIBLE);

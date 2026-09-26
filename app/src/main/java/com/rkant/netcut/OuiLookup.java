@@ -109,6 +109,33 @@ public final class OuiLookup {
         put("Roku", "080627", "8C49E2", "AC3A7A", "B0A737", "CC6DA0", "D0004B", "DC3A5E");
         // TCL / Alcatel
         put("TCL", "F859C7", "5CF8A1", "B01F81");
+        // Sonos
+        put("Sonos", "000E58", "5CAAFD", "48A6B8", "949F3E", "B8E937", "347E5C");
+        // Philips / Signify (Hue)
+        put("Philips Hue", "001788");
+        // Belkin / WeMo / Linksys
+        put("Belkin", "001150", "08863B", "94103E", "B4750E", "EC1A59", "944452");
+        // MikroTik
+        put("MikroTik", "000C42", "4C5E0C", "6C3B6B", "744D28", "CC2DE0", "DC2C6E",
+                "E48D8C", "488F5A", "B869F4");
+        // Synology
+        put("Synology", "001132", "9009D0");
+        // QNAP
+        put("QNAP", "00089B", "245EBE");
+        // Canon
+        put("Canon", "001E8F", "2C9EFC", "888717", "F48139", "00BBC1");
+        // Seiko Epson
+        put("Epson", "0026AB", "44D244", "A4EE57", "64EB8C", "381A52");
+        // Brother
+        put("Brother", "008077", "30055C", "001BA9", "E4B97A");
+        // Bose
+        put("Bose", "0452C7", "08DF1F", "2C41A1", "60ABD2", "C412F5");
+        // Tesla
+        put("Tesla", "4CFCAA", "54F8F0", "98ED5C", "DC4427", "CC8826");
+        // Aruba / HPE
+        put("Aruba", "000B86", "24DEC6", "6CF37F", "94B40F", "D8C7C8", "186472", "40E3D6");
+        // Zyxel
+        put("Zyxel", "001349", "0019CB", "5CE28C", "B0B2DC", "107BEF", "588BF3");
     }
 
     private static void put(String vendor, String... ouis) {

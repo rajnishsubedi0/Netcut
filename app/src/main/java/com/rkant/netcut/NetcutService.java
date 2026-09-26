@@ -638,6 +638,10 @@ public class NetcutService extends Service {
                 d.setLastSeen(now);
                 d.setOnline(true);
 
+                // Best value known now (offline/cached); misses are resolved
+                // online in the background and picked up by a later scan.
+                d.setVendor(VendorResolver.describe(this, mac));
+
                 if (dbDevice != null) {
                     d.setBanned(dbDevice.isBanned());
                     d.setProtected(dbDevice.isProtected());
