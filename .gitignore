@@ -1,0 +1,37 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local configuration (machine-specific SDK path, etc.) — must not be committed
+local.properties
+
+# Signing material and secrets — never commit these
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# Android build outputs
+release/
+*.apk
+*.aab
+*.ap_
+*.aar
+*.dex
+*.class
+
+# Android Studio / IntelliJ IDEA
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# NDK
+obj/
+
+# Logs & OS files
+*.log
+.DS_Store
+Thumbs.db
