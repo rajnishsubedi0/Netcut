@@ -149,6 +149,15 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
 
         holder.tvName.setText(displayName);
 
+        // Brand inferred from the MAC (OUI), or a hint when the MAC is randomized.
+        String vendor = OuiLookup.describe(d.getMac());
+        if (vendor != null && !vendor.isEmpty()) {
+            holder.tvVendor.setText(vendor);
+            holder.tvVendor.setVisibility(View.VISIBLE);
+        } else {
+            holder.tvVendor.setVisibility(View.GONE);
+        }
+
         if (d.isBanned()) {
             holder.tvName.setTextColor(ContextCompat.getColor(context, R.color.error));
         } else if (d.isProtected()) {
@@ -215,7 +224,7 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
-        TextView tvName, tvIp, tvMac, tvStatus, tvLastSeen;
+        TextView tvName, tvIp, tvMac, tvStatus, tvLastSeen, tvVendor;
         MaterialButton btnBan;
 
         ViewHolder(View v) {
@@ -225,6 +234,7 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
             tvMac = v.findViewById(R.id.tv_mac);
             tvStatus = v.findViewById(R.id.tv_status);
             tvLastSeen = v.findViewById(R.id.tv_last_seen);
+            tvVendor = v.findViewById(R.id.tv_vendor);
             btnBan = v.findViewById(R.id.btn_ban);
         }
     }
