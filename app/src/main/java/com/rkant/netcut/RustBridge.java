@@ -61,10 +61,11 @@ public class RustBridge {
         this.listener = listener;
         try {
 
-            RootManager.execute("magiskpolicy --live \"allow magisk self:packet_socket { create read write bind ioctl }\"", 2000);
-            RootManager.execute("magiskpolicy --live \"allow magisk self:capability net_raw\"", 2000);
-            RootManager.execute("magiskpolicy --live \"allow su self:packet_socket { create read write bind ioctl }\"", 2000);
-            RootManager.execute("magiskpolicy --live \"allow su self:capability net_raw\"", 2000);
+            // Grant the raw-socket SELinux permissions across Magisk / APatch
+            // (magiskpolicy) and KernelSU (ksud), without setting SELinux
+            // globally permissive.
+            String policyBackend = RootPolicyManager.grantRawSocketPolicy();
+            Log.i(TAG, "SELinux policy backend: " + policyBackend);
 
             String tmpBinPath = "/data/local/tmp/netcut_engine";
             String setupScript =
