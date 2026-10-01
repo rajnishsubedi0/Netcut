@@ -29,15 +29,15 @@ Netcut allows users to identify and disconnect devices from the network. By leve
 
 ---
 
-## Installation 🛠️
+## 🛠️ Installation
 
-**Prerequisites:**
+You can choose to either download a pre-built version or build the app yourself. 
 
-*   **Rooted Android Device**: This application requires root access to function correctly. Ensure your device is rooted with Magisk, SuperSU, or a compatible root solution.
+### Option 1: Download Pre-built APK (Recommended)
+You can easily download the latest release directly from the [GitHub Releases page](https://github.com/rajnishsubedi0/Netcut/releases/).
 
-**Steps:**
-
-You can download the app from https://github.com/rajnishsubedi0/Netcut/releases/ or build on your own using following.
+### Option 2: Build from Source
+If you prefer to build the application yourself, you can use Android Studio or the Gradle wrapper
 
 1.  **Clone the Repository**:
     ```bash
