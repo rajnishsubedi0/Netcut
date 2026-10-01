@@ -33,7 +33,7 @@ Netcut allows users to identify and disconnect devices from the network. By leve
 
 You can choose to either download a pre-built version or build the app yourself. 
 
-### Option 1: Download Pre-built APK (Recommended)
+### Option 1: Download Pre-built APK
 You can easily download the latest release directly from the [GitHub Releases page](https://github.com/rajnishsubedi0/Netcut/releases/).
 
 ### Option 2: Build from Source
