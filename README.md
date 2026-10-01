@@ -37,7 +37,7 @@ Netcut allows users to identify and disconnect devices from the network. By leve
 
 **Steps:**
 
-You can download the app from release or build on your own using following.
+You can download the app from https://github.com/rajnishsubedi0/Netcut/releases/ or build on your own using following.
 
 1.  **Clone the Repository**:
     ```bash
