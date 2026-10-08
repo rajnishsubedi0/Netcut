@@ -371,19 +371,11 @@ public class NetcutService extends Service {
         return started;
     }
 
-    public void stopEngine() {
-        manualStop();
-    }
 
     public boolean isEngineRunning() {
         return bridge != null && bridge.isRunning();
     }
 
-    public void pingBinary() {
-        if (bridge != null) {
-            bridge.pingBinary();
-        }
-    }
 
     public void banDevice(String mac, String ip) {
         if (mac == null) return;
@@ -563,9 +555,6 @@ public class NetcutService extends Service {
         return dbHelper.getBannedDevices();
     }
 
-    public String getDetectedArchitecture() {
-        return binaryManager != null ? binaryManager.detectArchitecture() : "unknown";
-    }
 
     public boolean isManualModeActive() {
         return userRequestedRunning;
@@ -589,8 +578,6 @@ public class NetcutService extends Service {
         if (scheduler != null && !scheduler.isShutdown()) {
             scheduler.shutdownNow();
         }
-
-        // ✅ First scan after engine start is baseline only
         baselineScanCompleted = false;
 
         int interval = getScanIntervalSecs();
@@ -742,18 +729,6 @@ public class NetcutService extends Service {
         return savedDevices;
     }
 
-    public boolean isDeviceSaved(String mac) {
-        if (mac == null) return false;
-
-        mac = Device.normalizeMac(mac);
-        if (mac.isEmpty()) return false;
-
-        Device known = knownDevices.get(mac);
-        if (known != null && known.isSaved()) return true;
-
-        Device db = dbHelper.getDevice(mac);
-        return db != null && db.isSaved();
-    }
 
     public boolean saveDevice(Device device) {
         if (device == null) return false;
@@ -875,7 +850,7 @@ public class NetcutService extends Service {
     private void spawnDelayedKill() {
         try {
             String script =
-                    "pids=$(pidof netcut_arm64 netcut_armeabi netcut 2>/dev/null); " +
+                    "pids=$(pidof netcut_engine 2>/dev/null); " +
                             "[ -z \"$pids\" ] && exit 0; " +
                             "kill -15 $pids 2>/dev/null; " +
                             "for i in $(seq 1 50); do " +

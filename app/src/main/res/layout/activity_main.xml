@@ -9,8 +9,6 @@
     android:background="@color/background"
     android:fitsSystemWindows="true"
     tools:context=".MainActivity">
-
-    <!-- ============ TOP ACTION BAR (blends like Settings header) ============ -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -251,8 +249,6 @@
                     android:layout_marginStart="6dp" />
             </LinearLayout>
         </FrameLayout>
-
-        <!-- ============ MATERIAL 3 TABS (replaces MaterialButtonToggleGroup) ============ -->
         <com.google.android.material.tabs.TabLayout
             android:id="@+id/tab_layout"
             android:layout_width="match_parent"

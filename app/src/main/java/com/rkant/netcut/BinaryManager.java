@@ -10,6 +10,7 @@ import android.util.Log;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.util.concurrent.TimeUnit;
 
 public class BinaryManager {
     private static final String TAG = "BinaryManager";
@@ -236,7 +237,9 @@ public class BinaryManager {
         try {
             Process chmodProcess = Runtime.getRuntime().exec(
                     new String[]{"chmod", "755", file.getAbsolutePath()});
-            chmodProcess.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                chmodProcess.waitFor(3, TimeUnit.SECONDS);
+            }
             if (file.canExecute()) return true;
         } catch (Exception ignored) {}
 
@@ -248,25 +251,15 @@ public class BinaryManager {
         return file.canExecute();
     }
 
-    public void deleteBinary() {
-        try {
-            File binDir = context.getDir("bin", Context.MODE_PRIVATE);
-            deleteAllBinaries(binDir);
-            SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-            prefs.edit().remove(KEY_EXTRACTED_VERSION).apply();
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to delete binaries", e);
-        }
-    }
     /**
      * Kills any existing netcut processes before starting a new one.
      */
     public void killExistingProcesses() {
         String script =
-                "pids=$(pidof netcut_arm64 netcut_armeabi netcut 2>/dev/null); " +
+                "pids=$(pidof netcut_engine 2>/dev/null); " +
                         "[ -n \"$pids\" ] && kill -15 $pids 2>/dev/null; " +
                         "sleep 1; " +
-                        "pids=$(pidof netcut_arm64 netcut_armeabi netcut 2>/dev/null); " +
+                        "pids=$(pidof netcut_engine 2>/dev/null); " +
                         "[ -n \"$pids\" ] && kill -9 $pids 2>/dev/null";
         RootManager.execute(script, 5000);
     }

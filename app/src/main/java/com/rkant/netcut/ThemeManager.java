@@ -15,7 +15,6 @@ public class ThemeManager {
     public static int getSavedMode(Context context) {
         SharedPreferences prefs = context.getApplicationContext()
                 .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        // ✅ DEFAULT THEME IS NOW LIGHT (was MODE_SYSTEM)
         return prefs.getInt(KEY_THEME_MODE, MODE_LIGHT);
     }
 
@@ -47,11 +46,5 @@ public class ThemeManager {
         }
     }
 
-    public static String getModeLabel(int mode) {
-        switch (mode) {
-            case MODE_LIGHT: return "Light";
-            case MODE_DARK:  return "Dark";
-            default:         return "System";
-        }
-    }
+
 }

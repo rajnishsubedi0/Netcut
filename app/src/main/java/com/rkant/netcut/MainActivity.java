@@ -505,7 +505,7 @@ public class MainActivity extends AppCompatActivity
                     new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog)
                             .setTitle("Root Access Required")
                             .setMessage("This app REQUIRES root to function.\n\n" +
-                                    "Please grant root (Magisk/SuperSU), then retry.")
+                                    "Please grant root (Magisk/KernalSU), then retry.")
                             .setCancelable(false)
                             .setPositiveButton("Retry Check", (d, w) -> checkRootAccessAsync())
                             .setNegativeButton("Exit App", (d, w) -> finish())

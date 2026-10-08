@@ -100,7 +100,6 @@ public class RustBridge {
         }
     }
     /**
-     * ✅ CRITICAL FIX: Graceful stop with proper wait for restore.
      * Waits up to restoreTimeoutMs for RESTORE_COMPLETED, then exitTimeoutMs for exit.
      */
     public boolean stopAndWait(long restoreTimeoutMs, long exitTimeoutMs) {
@@ -174,16 +173,6 @@ public class RustBridge {
         }
     }
 
-    public void pingBinary() {
-        if (!isRunning || isStopping) return;
-        try { sendCommand(createCommand("ping")); } catch (Exception e) {
-            Log.e(TAG, "Ping failed", e);
-        }
-    }
-
-    // ========================================================================
-    // Internal
-    // ========================================================================
 
     private JSONObject createCommand(String command) throws Exception {
         JSONObject cmd = new JSONObject();

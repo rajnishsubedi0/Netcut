@@ -88,16 +88,6 @@ public class DeviceDbHelper extends SQLiteOpenHelper {
         return null;
     }
 
-    public synchronized void updateIp(String mac, String ip) {
-        if (mac == null || mac.trim().isEmpty() || ip == null || ip.trim().isEmpty()) return;
-        mac = Device.normalizeMac(mac);
-
-        SQLiteDatabase db = getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put(COL_IP, ip.trim());
-        db.update(TABLE, values, COL_MAC + "=?", new String[]{mac});
-    }
-
     public synchronized void touchDevice(String mac, String ip, long firstSeen, long lastSeen) {
         if (mac == null || mac.trim().isEmpty()) return;
         mac = Device.normalizeMac(mac);

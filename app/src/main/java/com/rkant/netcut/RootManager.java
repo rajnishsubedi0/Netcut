@@ -29,9 +29,6 @@ public class RootManager {
         } catch (Exception e) { return false; }
     }
 
-    public static String execute(String command) {
-        return execute(command, DEFAULT_TIMEOUT_MS);
-    }
 
     public static String execute(String command, long timeoutMs) {
         StringBuilder output = new StringBuilder();
@@ -79,7 +76,6 @@ public class RootManager {
                 errOut.append(line).append("\n");
             }
 
-            // ✅ FIX: Append stderr to output so we can catch ping errors
             output.append(errOut);
 
         } catch (Exception e) {

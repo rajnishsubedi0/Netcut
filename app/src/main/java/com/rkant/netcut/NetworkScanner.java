@@ -190,14 +190,7 @@ public class NetworkScanner {
         return devices;
     }
 
-    /**
-     * Best-effort reverse-DNS pass that gives each device a human-readable
-     * hostname when the local network (router/DHCP) publishes one. Lookups run
-     * in parallel with a bounded overall deadline, so a slow or missing PTR
-     * record never stalls the scan. Devices whose hostname cannot be resolved
-     * are left untouched (their name stays empty and the UI falls back to the
-     * MAC vendor).
-     */
+
     private static void resolveHostnames(List<Device> devices) {
         if (devices == null || devices.isEmpty()) return;
 
@@ -208,9 +201,7 @@ public class NetworkScanner {
                 if (!Device.isValidIpv4(ip)) return;
                 try {
                     String host = InetAddress.getByName(ip).getCanonicalHostName();
-                    // A failed lookup returns the IP text unchanged; ignore that.
                     if (host != null && !host.isEmpty() && !host.equalsIgnoreCase(ip)) {
-                        // Drop any domain suffix, e.g. "Galaxy-S21.lan" -> "Galaxy-S21".
                         int dot = host.indexOf('.');
                         String clean = dot > 0 ? host.substring(0, dot) : host;
                         if (!clean.isEmpty()) d.setName(clean);
