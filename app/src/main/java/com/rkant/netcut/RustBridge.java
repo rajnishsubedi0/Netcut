@@ -50,6 +50,8 @@ public class RustBridge {
             boolean started = startLatch.await(timeoutMs, TimeUnit.MILLISECONDS);
             if (!started) {
                 Log.e(TAG, "Engine start timeout after " + timeoutMs + "ms");
+                isRunning = false;
+                destroyProcessIfAlive();
                 forceCleanup();
                 return false;
             }

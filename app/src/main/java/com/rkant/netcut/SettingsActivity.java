@@ -16,6 +16,7 @@ public class SettingsActivity extends AppCompatActivity {
     private MaterialSwitch switchUnknownAlerts;
     private MaterialSwitch switchAutoBan;
     private EditText etScanInterval;
+    private EditText etWakeLockTime;
     private MaterialButtonToggleGroup themeToggle;
     private MaterialButton btnThemeSystem, btnThemeLight, btnThemeDark;
     private int appliedThemeMode;
@@ -29,6 +30,7 @@ public class SettingsActivity extends AppCompatActivity {
         switchUnknownAlerts = findViewById(R.id.switch_unknown_alerts);
         switchAutoBan = findViewById(R.id.switch_auto_ban);
         etScanInterval = findViewById(R.id.et_scan_interval);
+        etWakeLockTime = findViewById(R.id.et_wakelock_time);
         Button btnSave = findViewById(R.id.btn_save_settings);
 
         themeToggle = findViewById(R.id.theme_toggle_group);
@@ -98,7 +100,7 @@ public class SettingsActivity extends AppCompatActivity {
             button.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.tab_selected_bg)));
             button.setTextColor(getColor(R.color.tab_selected_text));
         } else {
-            button.setBackgroundTintList(ColorStateList.valueOf(android.R.color.transparent));
+            button.setBackgroundTintList(ColorStateList.valueOf(getColor(android.R.color.transparent)));
             button.setTextColor(getColor(R.color.tab_unselected_text));
         }
     }
@@ -108,42 +110,64 @@ public class SettingsActivity extends AppCompatActivity {
     // ──────────────────────────────────────────────
     private void loadSettings() {
         SharedPreferences prefs = getSharedPreferences(NetcutService.PREFS_NAME, MODE_PRIVATE);
+
         boolean autoBan = prefs.getBoolean(NetcutService.KEY_AUTO_BAN_NEW_DEVICES, false);
         boolean alerts = prefs.getBoolean(NetcutService.KEY_UNKNOWN_ALERTS, true);
         int interval = prefs.getInt(NetcutService.KEY_SCAN_INTERVAL, 15);
+        int wakeLockMinutes = prefs.getInt(NetcutService.KEY_WAKELOCK_MINUTES, 60);
+
         if (autoBan) alerts = false;
+
         switchAutoBan.setChecked(autoBan);
         switchUnknownAlerts.setChecked(alerts);
         etScanInterval.setText(String.valueOf(interval));
+        etWakeLockTime.setText(String.valueOf(wakeLockMinutes));
     }
 
     private void saveSettings() {
         int interval = 15;
+
         try {
             interval = Integer.parseInt(etScanInterval.getText().toString().trim());
         } catch (Exception ignored) {
         }
+
         if (interval < 5) interval = 5;
         if (interval > 300) interval = 300;
 
+        int wakeLockMinutes = 60;
+
+        try {
+            wakeLockMinutes = Integer.parseInt(etWakeLockTime.getText().toString().trim());
+        } catch (Exception ignored) {
+        }
+
+        if (wakeLockMinutes < 0) wakeLockMinutes = 0;
+        if (wakeLockMinutes > 1440) wakeLockMinutes = 1440;
+
         boolean autoBan = switchAutoBan.isChecked();
         boolean alerts = switchUnknownAlerts.isChecked();
+
         if (autoBan) alerts = false;
-        if (alerts) autoBan = false;
 
         SharedPreferences prefs = getSharedPreferences(NetcutService.PREFS_NAME, MODE_PRIVATE);
+
         prefs.edit()
                 .putBoolean(NetcutService.KEY_UNKNOWN_ALERTS, alerts)
                 .putBoolean(NetcutService.KEY_AUTO_BAN_NEW_DEVICES, autoBan)
                 .putInt(NetcutService.KEY_SCAN_INTERVAL, interval)
+                .putInt(NetcutService.KEY_WAKELOCK_MINUTES, wakeLockMinutes)
                 .apply();
+
         Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show();
+
         try {
             Intent intent = new Intent(this, NetcutService.class);
             intent.setAction(NetcutService.ACTION_APPLY_SETTINGS);
             startService(intent);
         } catch (Exception ignored) {
         }
+
         finish();
     }
 }

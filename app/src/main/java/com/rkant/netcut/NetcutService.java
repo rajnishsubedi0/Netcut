@@ -55,6 +55,11 @@ public class NetcutService extends Service {
 
     private static final long RESTORE_TIMEOUT_MS = 9000L;
     private static final long EXIT_TIMEOUT_MS = 3000L;
+    public static final String KEY_WAKELOCK_MINUTES = "wakelock_minutes";
+
+    private static final int DEFAULT_WAKELOCK_MINUTES = 60;
+    private static final int MIN_WAKELOCK_MINUTES = 0;
+    private static final int MAX_WAKELOCK_MINUTES = 1440;
 
     private volatile boolean userRequestedRunning = false;
     private volatile boolean waitingForWifi = false;
@@ -70,9 +75,12 @@ public class NetcutService extends Service {
         public void run() {
             if (bridge != null && bridge.isRunning()) {
                 List<Device> activeBanned = new ArrayList<>();
+                long nowMs = System.currentTimeMillis();
 
                 for (Device d : knownDevices.values()) {
-                    if (d.isBanned() && !d.isProtected() && d.isOnline() &&
+                    boolean recentlySeen = d.isOnline()
+                            || (d.getLastSeen() > 0 && nowMs - d.getLastSeen() < 120_000L);
+                    if (d.isBanned() && !d.isProtected() && recentlySeen &&
                             Device.isValidIpv4(d.getIp()) && Device.isValidMac(d.getMac())) {
                         activeBanned.add(d);
                     }
@@ -97,6 +105,7 @@ public class NetcutService extends Service {
 
     private ConnectivityManager.NetworkCallback networkCallback;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Runnable startWhenReadyRunnable = this::requestStartWhenReady;
 
     private PowerManager.WakeLock wakeLock;
     private WifiManager.WifiLock wifiLock;
@@ -159,6 +168,7 @@ public class NetcutService extends Service {
                 case ACTION_APPLY_SETTINGS:
                     if (userRequestedRunning && isEngineRunning()) {
                         startPeriodicScan();
+                        refreshWakeLock();
                     } else if (!userRequestedRunning) {
                         stopSelf();
                     }
@@ -215,14 +225,35 @@ public class NetcutService extends Service {
     }
     @Override
     public void onTaskRemoved(Intent rootIntent) {
+        // The foreground notification (Stop / Restore All / Ban All) exists
+        // specifically so monitoring keeps running after the app's task is
+        // swiped away from Recents - that's normal background use, not a
+        // request to stop. Previously this method force-stopped the engine
+        // here regardless, which is why scanning/auto-ban appeared to die
+        // as soon as the app left the foreground. Only clean up if nothing
+        // was actually running, so there's no orphaned state to tear down.
+        if (!userRequestedRunning && !isEngineRunning()) {
+            mainHandler.removeCallbacksAndMessages(null);
+            killBinaryGracefully();
+        }
+
+        super.onTaskRemoved(rootIntent);
+    }
+
+    /**
+     * Android 15+ limits dataSync foreground services (~6h). If we don't stop
+     * ourselves here the system throws RemoteServiceException and kills the app.
+     */
+    @Override
+    public void onTimeout(int startId, int fgsType) {
+        Log.w(TAG, "Foreground service timeout reached; stopping");
         userRequestedRunning = false;
         waitingForWifi = false;
         pendingStartAttempt = false;
-
-        mainHandler.removeCallbacksAndMessages(null);
+        SessionLogManager.getInstance().log("Service stopped (Android foreground time limit)");
+        notifyToast("Android's foreground service time limit was reached. Restart Netcut.");
         killBinaryGracefully();
-
-        super.onTaskRemoved(rootIntent);
+        notifyDataChanged();
     }
 
     @Override
@@ -605,8 +636,20 @@ public class NetcutService extends Service {
                     && !autoBanEnabled;
 
             List<Device> scanned = NetworkScanner.scanArp(this);
+            if (scanned == null) {
+                Log.w(TAG, "ARP scan failed; keeping previous device state");
+                return;
+            }
+
+            // Snapshot who was online as of the previous scan *before* the
+            // reset below. Auto-ban is re-evaluated for anyone not in this
+            // set, so a known device that drops off and later rejoins the
+            // network gets a fresh auto-ban decision instead of being
+            // permanently exempt just because it has a DB row.
+            java.util.Set<String> previouslyOnline = new java.util.HashSet<>();
 
             for (Device d : knownDevices.values()) {
+                if (d.isOnline()) previouslyOnline.add(d.getMac());
                 d.setOnline(false);
             }
 
@@ -615,7 +658,16 @@ public class NetcutService extends Service {
 
                 Device dbDevice = dbHelper.getDevice(mac);
 
+                // Never seen on this install before: drives the "New device
+                // detected" notification/log only.
                 boolean isNewDevice = dbDevice == null && !knownDevices.containsKey(mac);
+
+                // Wasn't online as of the previous scan: drives auto-ban.
+                // Unlike isNewDevice this is true again whenever an already
+                // known device rejoins after being offline, so Auto Ban
+                // keeps enforcing on devices that reconnect, not just MACs
+                // that have literally never been seen before.
+                boolean isNewlyJoined = !previouslyOnline.contains(mac);
 
                 long firstSeen = dbDevice != null && dbDevice.getFirstSeen() > 0
                         ? dbDevice.getFirstSeen()
@@ -648,25 +700,35 @@ public class NetcutService extends Service {
 
                     SessionLogManager.getInstance().log("New device detected: " + label);
 
-                    if (autoBanEnabled) {
-                        if (!isDeviceProtected(mac)) {
-                            dbHelper.setBanned(mac, d.getIp(), true);
-                            updateDeviceBanStateInMemory(mac, d.getIp(), true);
-
-                            d.setBanned(true);
-
-                            SessionLogManager.getInstance()
-                                    .log("Device " + label + " auto-banned");
-                        } else {
-                            SessionLogManager.getInstance()
-                                    .log("Auto-ban skipped for protected device " + label);
-                        }
-                    } else if (allowNewDeviceAlerts) {
+                    if (!autoBanEnabled && allowNewDeviceAlerts) {
                         showNewDeviceNotification(d);
 
                         if (callback != null) {
                             mainHandler.post(() -> callback.onNewDeviceDetected(d));
                         }
+                    }
+                }
+
+                // Auto-ban runs on its own condition (isNewlyJoined), separate
+                // from the "New device detected" block above, so it also
+                // catches already-known devices rejoining the network -
+                // not just MACs that have never been seen on this install.
+                // !d.isBanned() avoids re-logging/re-writing the DB every
+                // time an already-banned device reconnects.
+                if (autoBanEnabled && isNewlyJoined && baselineScanCompleted && !d.isBanned()) {
+                    String label = Device.isValidIpv4(d.getIp()) ? d.getIp() : mac;
+
+                    if (!isDeviceProtected(mac)) {
+                        dbHelper.setBanned(mac, d.getIp(), true);
+                        updateDeviceBanStateInMemory(mac, d.getIp(), true);
+
+                        d.setBanned(true);
+
+                        SessionLogManager.getInstance()
+                                .log("Device " + label + " auto-banned");
+                    } else {
+                        SessionLogManager.getInstance()
+                                .log("Auto-ban skipped for protected device " + label);
                     }
                 }
 
@@ -892,8 +954,8 @@ public class NetcutService extends Service {
             public void onAvailable(Network network) {
                 if (!userRequestedRunning) return;
 
-                mainHandler.removeCallbacksAndMessages(null);
-                mainHandler.postDelayed(() -> requestStartWhenReady(), 2000);
+                mainHandler.removeCallbacks(startWhenReadyRunnable);
+                mainHandler.postDelayed(startWhenReadyRunnable, 2000);
             }
 
             @Override
@@ -1002,17 +1064,38 @@ public class NetcutService extends Service {
         try {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
 
-            if (pm != null && wakeLock == null) {
-                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "netcut:engine");
-                wakeLock.acquire(30 * 60 * 1000L);
+            if (pm != null) {
+                if (wakeLock == null) {
+                    wakeLock = pm.newWakeLock(
+                            PowerManager.PARTIAL_WAKE_LOCK,
+                            "netcut:engine"
+                    );
+                    wakeLock.setReferenceCounted(false);
+                }
+
+                if (!wakeLock.isHeld()) {
+                    long timeoutMs = getWakeLockTimeoutMs();
+
+                    if (timeoutMs > 0) {
+                        wakeLock.acquire(timeoutMs);
+                    } else {
+                        // 0 means indefinite wake lock
+                        wakeLock.acquire();
+                    }
+                }
             }
 
-            WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            WifiManager wm = (WifiManager) getApplicationContext()
+                    .getSystemService(Context.WIFI_SERVICE);
 
             if (wm != null && wifiLock == null) {
-                wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "netcut:wifi");
+                wifiLock = wm.createWifiLock(
+                        WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                        "netcut:wifi"
+                );
                 wifiLock.acquire();
             }
+
         } catch (Exception e) {
             Log.e(TAG, "Failed to acquire locks", e);
         }
@@ -1020,13 +1103,13 @@ public class NetcutService extends Service {
 
     private void releaseLocks() {
         try {
-            if (wakeLock != null && wakeLock.isHeld()) {
-                wakeLock.release();
+            if (wakeLock != null) {
+                if (wakeLock.isHeld()) wakeLock.release();
                 wakeLock = null;
             }
 
-            if (wifiLock != null && wifiLock.isHeld()) {
-                wifiLock.release();
+            if (wifiLock != null) {
+                if (wifiLock.isHeld()) wifiLock.release();
                 wifiLock = null;
             }
         } catch (Exception e) {
@@ -1270,5 +1353,40 @@ public class NetcutService extends Service {
 
         syncBannedDevices();
         notifyDataChanged();
+    }
+
+    private int getWakeLockMinutes() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+
+        int minutes = prefs.getInt(KEY_WAKELOCK_MINUTES, DEFAULT_WAKELOCK_MINUTES);
+
+        if (minutes < MIN_WAKELOCK_MINUTES) {
+            minutes = MIN_WAKELOCK_MINUTES;
+        }
+
+        if (minutes > MAX_WAKELOCK_MINUTES) {
+            minutes = MAX_WAKELOCK_MINUTES;
+        }
+
+        return minutes;
+    }
+
+    private long getWakeLockTimeoutMs() {
+        return getWakeLockMinutes() * 60_000L;
+    }
+
+    private void refreshWakeLock() {
+        try {
+            if (wakeLock != null) {
+                if (wakeLock.isHeld()) {
+                    wakeLock.release();
+                }
+                wakeLock = null;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to release wake lock for refresh", e);
+        }
+
+        acquireLocks();
     }
 }

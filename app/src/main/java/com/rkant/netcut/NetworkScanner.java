@@ -144,6 +144,7 @@ public class NetworkScanner {
         RootManager.execute(cmd, 8000);
     }
 
+    /** @return the devices found, or null if the scan itself failed. */
     public static List<Device> scanArp(Context context) {
         List<Device> devices = new ArrayList<>();
         String gatewayIp = getGatewayIp(context);
@@ -154,7 +155,9 @@ public class NetworkScanner {
         pingSubnet(context);
 
         String output = RootManager.execute("cat /proc/net/arp", 5000);
-        if (output == null || output.trim().isEmpty()) return devices;
+        // null signals "scan failed" so callers keep their previous state instead
+        // of treating every device as offline (which would drop all bans).
+        if (output == null || output.trim().isEmpty() || output.startsWith("TIMEOUT")) return null;
 
         String[] lines = output.split("\n");
         for (String line : lines) {

@@ -34,7 +34,7 @@
             android:name=".NetcutService"
             android:enabled="true"
             android:exported="false"
-            android:stopWithTask="true"
+            android:stopWithTask="false"
             android:foregroundServiceType="dataSync" />
 
         <activity
