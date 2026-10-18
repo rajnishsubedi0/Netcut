@@ -2,6 +2,7 @@ package com.rkant.netcut;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.graphics.Paint;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -43,7 +44,6 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
         if (newDevices != null) {
             allDevices.addAll(newDevices);
         }
-
         Set<String> validMacs = new HashSet<>();
         for (Device d : allDevices) {
             if (d.getMac() != null && !d.getMac().isEmpty()) {
@@ -66,11 +66,9 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
                 filteredDevices.add(d);
                 continue;
             }
-
             String name = d.getName() == null ? "" : d.getName().toLowerCase();
             String ip = d.getIp() == null ? "" : d.getIp().toLowerCase();
             String mac = d.getMac() == null ? "" : d.getMac().toLowerCase();
-
             if (name.contains(query) || ip.contains(query) || mac.contains(query)) {
                 filteredDevices.add(d);
             }
@@ -80,7 +78,6 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
 
     public void toggleSelection(String mac) {
         if (mac == null || mac.isEmpty()) return;
-
         if (selectedMacs.contains(mac)) {
             selectedMacs.remove(mac);
         } else {
@@ -130,6 +127,15 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
         final String mac = d.getMac() == null ? "" : d.getMac();
 
         holder.tvIp.setText(d.getIp() != null ? d.getIp() : "N/A");
+
+        if (d.isBanned()) {
+            holder.tvIp.setTextColor(ContextCompat.getColor(context, R.color.error));
+            holder.tvIp.setPaintFlags(holder.tvIp.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+        } else {
+            holder.tvIp.setTextColor(ContextCompat.getColor(context, R.color.text_primary));
+            holder.tvIp.setPaintFlags(holder.tvIp.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
+        }
+
         holder.tvMac.setText(d.getMac() != null ? d.getMac() : "N/A");
         holder.tvLastSeen.setText("Last seen: " + Device.formatLastSeen(d.getLastSeen()));
 
@@ -140,17 +146,17 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
                 isOnline ? R.color.success : R.color.text_tertiary
         ));
 
-        String displayName = d.getName() != null && !d.getName().isEmpty()
-                ? d.getName()
-                : "Unnamed Device";
 
-        if (d.isProtected()) displayName += " 🛡";
-        if (d.isBanned()) displayName += " 🚫";
+        String rawName = d.getRawName();
+        boolean hasCustomName = rawName != null && !rawName.trim().isEmpty() && !rawName.trim().equalsIgnoreCase("Unnamed");
+        if (hasCustomName) {
+            holder.tvNameWatermark.setText(rawName.trim());
+            holder.tvNameWatermark.setVisibility(View.VISIBLE);
+        } else {
+            holder.tvNameWatermark.setText("");
+            holder.tvNameWatermark.setVisibility(View.GONE);
+        }
 
-        holder.tvName.setText(displayName);
-
-        // Brand: prefer the value resolved during the scan (offline table or
-        // online lookup); fall back to the offline table for safety.
         String vendor = d.getVendor();
         if (vendor == null || vendor.isEmpty()) {
             vendor = OuiLookup.describe(d.getMac());
@@ -160,14 +166,6 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
             holder.tvVendor.setVisibility(View.VISIBLE);
         } else {
             holder.tvVendor.setVisibility(View.GONE);
-        }
-
-        if (d.isBanned()) {
-            holder.tvName.setTextColor(ContextCompat.getColor(context, R.color.error));
-        } else if (d.isProtected()) {
-            holder.tvName.setTextColor(ContextCompat.getColor(context, R.color.primary));
-        } else {
-            holder.tvName.setTextColor(ContextCompat.getColor(context, R.color.text_primary));
         }
 
         boolean selected = selectedMacs.contains(mac);
@@ -194,7 +192,6 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
 
         boolean isProtected = d.isProtected();
         boolean isBanned = d.isBanned();
-
         if (isProtected) {
             holder.btnBan.setText("Protected");
             holder.btnBan.setEnabled(false);
@@ -203,7 +200,6 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
             holder.btnBan.setTextColor(ContextCompat.getColor(context, R.color.text_tertiary));
         } else {
             holder.btnBan.setEnabled(true);
-
             if (isBanned) {
                 holder.btnBan.setText("Unban");
                 holder.btnBan.setBackgroundTintList(ColorStateList.valueOf(
@@ -228,12 +224,12 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.ViewHolder
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
-        TextView tvName, tvIp, tvMac, tvStatus, tvLastSeen, tvVendor;
+        TextView tvNameWatermark, tvIp, tvMac, tvStatus, tvLastSeen, tvVendor;
         MaterialButton btnBan;
 
         ViewHolder(View v) {
             super(v);
-            tvName = v.findViewById(R.id.tv_name);
+            tvNameWatermark = v.findViewById(R.id.tv_name_watermark);
             tvIp = v.findViewById(R.id.tv_ip);
             tvMac = v.findViewById(R.id.tv_mac);
             tvStatus = v.findViewById(R.id.tv_status);

@@ -1,6 +1,7 @@
 package com.rkant.netcut;
 
 import android.content.Context;
+import android.graphics.Paint;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -47,22 +48,18 @@ public class ProtectedDeviceAdapter extends RecyclerView.Adapter<ProtectedDevice
 
     private void applyFilter() {
         filteredDevices.clear();
-
         for (Device d : allDevices) {
             if (query.isEmpty()) {
                 filteredDevices.add(d);
                 continue;
             }
-
             String name = d.getName() == null ? "" : d.getName().toLowerCase();
             String ip = d.getIp() == null ? "" : d.getIp().toLowerCase();
             String mac = d.getMac() == null ? "" : d.getMac().toLowerCase();
-
             if (name.contains(query) || ip.contains(query) || mac.contains(query)) {
                 filteredDevices.add(d);
             }
         }
-
         notifyDataSetChanged();
     }
 
@@ -79,41 +76,41 @@ public class ProtectedDeviceAdapter extends RecyclerView.Adapter<ProtectedDevice
         Device d = filteredDevices.get(position);
         final Context context = holder.itemView.getContext();
 
-        holder.tvIp.setText(d.getIp() != null && !d.getIp().trim().isEmpty()
-                ? d.getIp()
-                : "N/A");
-
-        holder.tvMac.setText(d.getMac() != null && !d.getMac().trim().isEmpty()
-                ? d.getMac()
-                : "N/A");
-
-        holder.tvLastSeen.setText("Last seen: " + Device.formatLastSeen(d.getLastSeen()));
-
-        holder.tvStatus.setText("PROTECTED");
-        holder.tvStatus.setTextColor(ContextCompat.getColor(context, R.color.primary));
-
-        String displayName = d.getName();
-        if (d.isProtected()) displayName += " 🛡";
-        if (d.isBanned()) displayName += " 🚫";
-
-        holder.tvName.setText(displayName);
+        holder.tvIp.setText(d.getIp() != null && !d.getIp().trim().isEmpty() ? d.getIp() : "N/A");
 
         if (d.isBanned()) {
-            holder.tvName.setTextColor(ContextCompat.getColor(context, R.color.error));
+            holder.tvIp.setTextColor(ContextCompat.getColor(context, R.color.error));
+            holder.tvIp.setPaintFlags(holder.tvIp.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
         } else {
-            holder.tvName.setTextColor(ContextCompat.getColor(context, R.color.primary));
+            holder.tvIp.setTextColor(ContextCompat.getColor(context, R.color.text_primary));
+            holder.tvIp.setPaintFlags(holder.tvIp.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
+        }
+
+        holder.tvMac.setText(d.getMac() != null && !d.getMac().trim().isEmpty() ? d.getMac() : "N/A");
+        holder.tvLastSeen.setText("Last seen: " + Device.formatLastSeen(d.getLastSeen()));
+
+        if (d.isSaved()) {
+            holder.tvStatus.setText("PROTECTED • SAVED");
+        } else {
+            holder.tvStatus.setText("PROTECTED");
+        }
+        holder.tvStatus.setTextColor(ContextCompat.getColor(context, R.color.primary));
+
+        String rawName = d.getRawName();
+        if (rawName != null && !rawName.trim().isEmpty() && !rawName.trim().equalsIgnoreCase("Unnamed")) {
+            holder.tvNameWatermark.setText(rawName.trim());
+            holder.tvNameWatermark.setVisibility(View.VISIBLE);
+        } else {
+            holder.tvNameWatermark.setText("");
+            holder.tvNameWatermark.setVisibility(View.GONE);
         }
 
         holder.itemView.setOnClickListener(v -> {
-            if (listener != null) {
-                listener.onProtectedDeviceClick(d);
-            }
+            if (listener != null) listener.onProtectedDeviceClick(d);
         });
 
         holder.btnRemoveProtection.setOnClickListener(v -> {
-            if (listener != null) {
-                listener.onRemoveProtectionClick(d);
-            }
+            if (listener != null) listener.onRemoveProtectionClick(d);
         });
     }
 
@@ -123,12 +120,12 @@ public class ProtectedDeviceAdapter extends RecyclerView.Adapter<ProtectedDevice
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
-        TextView tvName, tvIp, tvMac, tvStatus, tvLastSeen;
+        TextView tvNameWatermark, tvIp, tvMac, tvStatus, tvLastSeen;
         MaterialButton btnRemoveProtection;
 
         ViewHolder(View v) {
             super(v);
-            tvName = v.findViewById(R.id.tv_name);
+            tvNameWatermark = v.findViewById(R.id.tv_name_watermark);
             tvIp = v.findViewById(R.id.tv_ip);
             tvMac = v.findViewById(R.id.tv_mac);
             tvStatus = v.findViewById(R.id.tv_status);

@@ -1,6 +1,7 @@
 package com.rkant.netcut;
 
 import android.content.Context;
+import android.graphics.Paint;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -47,22 +48,18 @@ public class SavedDeviceAdapter extends RecyclerView.Adapter<SavedDeviceAdapter.
 
     private void applyFilter() {
         filteredDevices.clear();
-
         for (Device d : allDevices) {
             if (query.isEmpty()) {
                 filteredDevices.add(d);
                 continue;
             }
-
             String name = d.getName() == null ? "" : d.getName().toLowerCase();
             String ip = d.getIp() == null ? "" : d.getIp().toLowerCase();
             String mac = d.getMac() == null ? "" : d.getMac().toLowerCase();
-
             if (name.contains(query) || ip.contains(query) || mac.contains(query)) {
                 filteredDevices.add(d);
             }
         }
-
         notifyDataSetChanged();
     }
 
@@ -79,44 +76,43 @@ public class SavedDeviceAdapter extends RecyclerView.Adapter<SavedDeviceAdapter.
         Device d = filteredDevices.get(position);
         final Context context = holder.itemView.getContext();
 
-        holder.tvIp.setText(d.getIp() != null && !d.getIp().trim().isEmpty()
-                ? d.getIp()
-                : "N/A");
-
-        holder.tvMac.setText(d.getMac() != null && !d.getMac().trim().isEmpty()
-                ? d.getMac()
-                : "N/A");
-
-        holder.tvLastSeen.setText("Last seen: " + Device.formatLastSeen(d.getLastSeen()));
-
-        holder.tvStatus.setText("SAVED");
-        holder.tvStatus.setTextColor(ContextCompat.getColor(context, R.color.warning));
-
-        String displayName = d.getName();
-
-        if (d.isProtected()) displayName += " 🛡";
-        if (d.isBanned()) displayName += " 🚫";
-
-        holder.tvName.setText(displayName);
+        holder.tvIp.setText(d.getIp() != null && !d.getIp().trim().isEmpty() ? d.getIp() : "N/A");
 
         if (d.isBanned()) {
-            holder.tvName.setTextColor(ContextCompat.getColor(context, R.color.error));
-        } else if (d.isProtected()) {
-            holder.tvName.setTextColor(ContextCompat.getColor(context, R.color.primary));
+            holder.tvIp.setTextColor(ContextCompat.getColor(context, R.color.error));
+            holder.tvIp.setPaintFlags(holder.tvIp.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
         } else {
-            holder.tvName.setTextColor(ContextCompat.getColor(context, R.color.text_primary));
+            holder.tvIp.setTextColor(ContextCompat.getColor(context, R.color.text_primary));
+            holder.tvIp.setPaintFlags(holder.tvIp.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
+        }
+
+        holder.tvMac.setText(d.getMac() != null && !d.getMac().trim().isEmpty() ? d.getMac() : "N/A");
+        holder.tvLastSeen.setText("Last seen: " + Device.formatLastSeen(d.getLastSeen()));
+
+        if (d.isProtected()) {
+            holder.tvStatus.setText("SAVED • PROTECTED");
+        } else if (d.isBanned()) {
+            holder.tvStatus.setText("SAVED • BANNED");
+        } else {
+            holder.tvStatus.setText("SAVED");
+        }
+        holder.tvStatus.setTextColor(ContextCompat.getColor(context, R.color.warning));
+
+        String rawName = d.getRawName();
+        if (rawName != null && !rawName.trim().isEmpty() && !rawName.trim().equalsIgnoreCase("Unnamed")) {
+            holder.tvNameWatermark.setText(rawName.trim());
+            holder.tvNameWatermark.setVisibility(View.VISIBLE);
+        } else {
+            holder.tvNameWatermark.setText("");
+            holder.tvNameWatermark.setVisibility(View.GONE);
         }
 
         holder.itemView.setOnClickListener(v -> {
-            if (listener != null) {
-                listener.onSavedDeviceClick(d);
-            }
+            if (listener != null) listener.onSavedDeviceClick(d);
         });
 
         holder.btnRemoveSaved.setOnClickListener(v -> {
-            if (listener != null) {
-                listener.onRemoveSavedClick(d);
-            }
+            if (listener != null) listener.onRemoveSavedClick(d);
         });
     }
 
@@ -126,12 +122,12 @@ public class SavedDeviceAdapter extends RecyclerView.Adapter<SavedDeviceAdapter.
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
-        TextView tvName, tvIp, tvMac, tvStatus, tvLastSeen;
+        TextView tvNameWatermark, tvIp, tvMac, tvStatus, tvLastSeen;
         MaterialButton btnRemoveSaved;
 
         ViewHolder(View v) {
             super(v);
-            tvName = v.findViewById(R.id.tv_name);
+            tvNameWatermark = v.findViewById(R.id.tv_name_watermark);
             tvIp = v.findViewById(R.id.tv_ip);
             tvMac = v.findViewById(R.id.tv_mac);
             tvStatus = v.findViewById(R.id.tv_status);

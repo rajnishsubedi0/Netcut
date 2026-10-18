@@ -1208,42 +1208,37 @@ public class MainActivity extends AppCompatActivity
 
     private void showDeviceBottomSheet(Device device) {
         if (isFinishing()) return;
-
         BottomSheetDialog dialog = new BottomSheetDialog(this);
         View sheet = LayoutInflater.from(this).inflate(R.layout.bottom_sheet_device, null);
         dialog.setContentView(sheet);
-
         TextView tvSheetName = sheet.findViewById(R.id.tv_sheet_name);
         TextView tvSheetIp = sheet.findViewById(R.id.tv_sheet_ip);
         TextView tvSheetMac = sheet.findViewById(R.id.tv_sheet_mac);
         TextView tvSheetStatus = sheet.findViewById(R.id.tv_sheet_status);
         TextView tvSheetFirstSeen = sheet.findViewById(R.id.tv_sheet_first_seen);
         TextView tvSheetLastSeen = sheet.findViewById(R.id.tv_sheet_last_seen);
-
         MaterialButton btnSheetBan = sheet.findViewById(R.id.btn_sheet_ban);
         MaterialButton btnSheetProtect = sheet.findViewById(R.id.btn_sheet_protect);
         MaterialButton btnSheetPing = sheet.findViewById(R.id.btn_sheet_ping);
         MaterialButton btnSheetRename = sheet.findViewById(R.id.btn_sheet_rename);
         MaterialButton btnSheetClose = sheet.findViewById(R.id.btn_sheet_close);
         MaterialButton btnSheetSave = sheet.findViewById(R.id.btn_sheet_save);
-
         View dotSheetStatus = sheet.findViewById(R.id.dot_sheet_status);
         MaterialCardView cardSheetStatus = sheet.findViewById(R.id.card_sheet_status);
 
-        tvSheetName.setText(device.getName());
+        String sheetName = device.getRawName();
+        tvSheetName.setText(sheetName != null && !sheetName.trim().isEmpty() && !sheetName.trim().equalsIgnoreCase("Unnamed")
+                ? sheetName.trim()
+                : device.getIp());
+
         tvSheetIp.setText(device.getIp());
         tvSheetMac.setText(device.getMac());
-
         boolean online = device.isOnline();
-
         tvSheetStatus.setText(online ? "Online" : "Offline");
         tvSheetStatus.setTextColor(getColor(online ? R.color.success : R.color.error));
-
         setDotColor(dotSheetStatus, getColor(online ? R.color.success : R.color.error));
-
         cardSheetStatus.setCardBackgroundColor(getColor(online ? R.color.success_container : R.color.error_container));
         cardSheetStatus.setStrokeColor(getColor(online ? R.color.success : R.color.error));
-
         tvSheetFirstSeen.setText(Device.formatLastSeen(device.getFirstSeen()));
         tvSheetLastSeen.setText(Device.formatLastSeen(device.getLastSeen()));
 
@@ -1252,10 +1247,7 @@ public class MainActivity extends AppCompatActivity
             btnSheetBan.setText("Unban Device");
             btnSheetBan.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.success)));
             btnSheetBan.setTextColor(getColor(R.color.on_success));
-            btnSheetBan.setOnClickListener(v -> {
-                dialog.dismiss();
-                confirmUnbanDevice(device);
-            });
+            btnSheetBan.setOnClickListener(v -> { dialog.dismiss(); confirmUnbanDevice(device); });
         } else if (device.isProtected()) {
             btnSheetBan.setEnabled(false);
             btnSheetBan.setText("Protected");
@@ -1267,201 +1259,125 @@ public class MainActivity extends AppCompatActivity
             btnSheetBan.setText("Ban Device");
             btnSheetBan.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.error)));
             btnSheetBan.setTextColor(getColor(R.color.on_error));
-            btnSheetBan.setOnClickListener(v -> {
-                dialog.dismiss();
-                banDeviceDirect(device);
-            });
+            btnSheetBan.setOnClickListener(v -> { dialog.dismiss(); banDeviceDirect(device); });
         }
 
         if (device.isProtected()) {
             btnSheetProtect.setText("Remove Protection");
             btnSheetProtect.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.surface_variant)));
             btnSheetProtect.setTextColor(getColor(R.color.text_primary));
-            btnSheetProtect.setOnClickListener(v -> {
-                dialog.dismiss();
-                confirmRemoveProtection(device);
-            });
+            btnSheetProtect.setOnClickListener(v -> { dialog.dismiss(); confirmRemoveProtection(device); });
         } else if (device.isBanned()) {
             btnSheetProtect.setText("Unban & Protect");
             btnSheetProtect.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.primary)));
             btnSheetProtect.setTextColor(getColor(R.color.on_primary));
-            btnSheetProtect.setOnClickListener(v -> {
-                dialog.dismiss();
-                confirmUnbanAndProtect(device);
-            });
+            btnSheetProtect.setOnClickListener(v -> { dialog.dismiss(); confirmUnbanAndProtect(device); });
         } else {
             btnSheetProtect.setText("Protect Device");
             btnSheetProtect.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.primary)));
             btnSheetProtect.setTextColor(getColor(R.color.on_primary));
-            btnSheetProtect.setOnClickListener(v -> {
-                dialog.dismiss();
-                protectDeviceDirect(device);
-            });
+            btnSheetProtect.setOnClickListener(v -> { dialog.dismiss(); protectDeviceDirect(device); });
         }
 
         setupSaveButton(btnSheetSave, device);
-
-        btnSheetPing.setOnClickListener(v -> {
-            dialog.dismiss();
-            onPingClick(device);
-        });
-
-        btnSheetRename.setOnClickListener(v -> {
-            dialog.dismiss();
-            showRenameDialog(device);
-        });
-
+        btnSheetPing.setOnClickListener(v -> { dialog.dismiss(); onPingClick(device); });
+        btnSheetRename.setOnClickListener(v -> { dialog.dismiss(); showRenameDialog(device); });
         btnSheetClose.setOnClickListener(v -> dialog.dismiss());
-
         dialog.show();
     }
-
     private void showBannedDeviceBottomSheet(Device device) {
         if (isFinishing()) return;
-
         BottomSheetDialog dialog = new BottomSheetDialog(this);
         View sheet = LayoutInflater.from(this).inflate(R.layout.bottom_sheet_banned_device, null);
         dialog.setContentView(sheet);
-
         TextView tvName = sheet.findViewById(R.id.tv_banned_sheet_name);
         TextView tvIp = sheet.findViewById(R.id.tv_banned_sheet_ip);
         TextView tvMac = sheet.findViewById(R.id.tv_banned_sheet_mac);
         TextView tvStatus = sheet.findViewById(R.id.tv_banned_sheet_status);
         TextView tvFirstSeen = sheet.findViewById(R.id.tv_banned_sheet_first_seen);
         TextView tvLastSeen = sheet.findViewById(R.id.tv_banned_sheet_last_seen);
-
         MaterialButton btnUnban = sheet.findViewById(R.id.btn_banned_sheet_unban);
         MaterialButton btnProtect = sheet.findViewById(R.id.btn_banned_sheet_protect);
         MaterialButton btnRename = sheet.findViewById(R.id.btn_banned_sheet_rename);
         MaterialButton btnClose = sheet.findViewById(R.id.btn_banned_sheet_close);
         MaterialButton btnSave = sheet.findViewById(R.id.btn_banned_sheet_save);
-
         View dotStatus = sheet.findViewById(R.id.dot_banned_sheet_status);
         MaterialCardView cardStatus = sheet.findViewById(R.id.card_banned_sheet_status);
 
-        tvName.setText(device.getName());
+        String sheetName = device.getRawName();
+        tvName.setText(sheetName != null && !sheetName.trim().isEmpty() && !sheetName.trim().equalsIgnoreCase("Unnamed")
+                ? sheetName.trim()
+                : device.getIp());
 
-        tvIp.setText(device.getIp() != null && !device.getIp().trim().isEmpty()
-                ? device.getIp()
-                : "N/A");
-
-        tvMac.setText(device.getMac() != null && !device.getMac().trim().isEmpty()
-                ? device.getMac()
-                : "N/A");
-
+        tvIp.setText(device.getIp() != null && !device.getIp().trim().isEmpty() ? device.getIp() : "N/A");
+        tvMac.setText(device.getMac() != null && !device.getMac().trim().isEmpty() ? device.getMac() : "N/A");
         tvStatus.setText(device.isProtected() ? "Banned • Protected" : "Banned");
         tvStatus.setTextColor(getColor(R.color.error));
-
         setDotColor(dotStatus, getColor(R.color.error));
-
         cardStatus.setCardBackgroundColor(getColor(R.color.error_container));
         cardStatus.setStrokeColor(getColor(R.color.error));
-
         tvFirstSeen.setText(Device.formatLastSeen(device.getFirstSeen()));
         tvLastSeen.setText(Device.formatLastSeen(device.getLastSeen()));
 
-        btnUnban.setOnClickListener(v -> {
-            dialog.dismiss();
-            confirmUnbanDevice(device);
-        });
-
+        btnUnban.setOnClickListener(v -> { dialog.dismiss(); confirmUnbanDevice(device); });
         btnProtect.setText(device.isProtected() ? "Unban & Keep Protected" : "Unban & Protect");
-        btnProtect.setOnClickListener(v -> {
-            dialog.dismiss();
-            confirmUnbanAndProtect(device);
-        });
-
+        btnProtect.setOnClickListener(v -> { dialog.dismiss(); confirmUnbanAndProtect(device); });
         setupSaveButton(btnSave, device);
-
-        btnRename.setOnClickListener(v -> {
-            dialog.dismiss();
-            showRenameDialog(device);
-        });
-
+        btnRename.setOnClickListener(v -> { dialog.dismiss(); showRenameDialog(device); });
         btnClose.setOnClickListener(v -> dialog.dismiss());
-
         dialog.show();
     }
-
     private void showProtectedDeviceBottomSheet(Device device) {
         if (isFinishing()) return;
-
         BottomSheetDialog dialog = new BottomSheetDialog(this);
         View sheet = LayoutInflater.from(this).inflate(R.layout.bottom_sheet_protected_device, null);
         dialog.setContentView(sheet);
-
         TextView tvName = sheet.findViewById(R.id.tv_protected_sheet_name);
         TextView tvIp = sheet.findViewById(R.id.tv_protected_sheet_ip);
         TextView tvMac = sheet.findViewById(R.id.tv_protected_sheet_mac);
         TextView tvStatus = sheet.findViewById(R.id.tv_protected_sheet_status);
         TextView tvFirstSeen = sheet.findViewById(R.id.tv_protected_sheet_first_seen);
         TextView tvLastSeen = sheet.findViewById(R.id.tv_protected_sheet_last_seen);
-
         MaterialButton btnRemove = sheet.findViewById(R.id.btn_protected_sheet_remove);
         MaterialButton btnBan = sheet.findViewById(R.id.btn_protected_sheet_ban);
         MaterialButton btnRename = sheet.findViewById(R.id.btn_protected_sheet_rename);
         MaterialButton btnClose = sheet.findViewById(R.id.btn_protected_sheet_close);
         MaterialButton btnSave = sheet.findViewById(R.id.btn_protected_sheet_save);
-
         View dotStatus = sheet.findViewById(R.id.dot_protected_sheet_status);
         MaterialCardView cardStatus = sheet.findViewById(R.id.card_protected_sheet_status);
 
-        tvName.setText(device.getName());
+        String sheetName = device.getRawName();
+        tvName.setText(sheetName != null && !sheetName.trim().isEmpty() && !sheetName.trim().equalsIgnoreCase("Unnamed")
+                ? sheetName.trim()
+                : device.getIp());
 
-        tvIp.setText(device.getIp() != null && !device.getIp().trim().isEmpty()
-                ? device.getIp()
-                : "N/A");
-
-        tvMac.setText(device.getMac() != null && !device.getMac().trim().isEmpty()
-                ? device.getMac()
-                : "N/A");
-
+        tvIp.setText(device.getIp() != null && !device.getIp().trim().isEmpty() ? device.getIp() : "N/A");
+        tvMac.setText(device.getMac() != null && !device.getMac().trim().isEmpty() ? device.getMac() : "N/A");
         tvStatus.setText(device.isOnline() ? "Protected • Online" : "Protected");
         tvStatus.setTextColor(getColor(R.color.success));
-
         setDotColor(dotStatus, getColor(R.color.success));
-
         cardStatus.setCardBackgroundColor(getColor(R.color.success_container));
         cardStatus.setStrokeColor(getColor(R.color.success));
-
         tvFirstSeen.setText(Device.formatLastSeen(device.getFirstSeen()));
         tvLastSeen.setText(Device.formatLastSeen(device.getLastSeen()));
 
-        btnRemove.setOnClickListener(v -> {
-            dialog.dismiss();
-            confirmRemoveProtection(device);
-        });
-
+        btnRemove.setOnClickListener(v -> { dialog.dismiss(); confirmRemoveProtection(device); });
         if (device.isBanned()) {
             btnBan.setText("Unban Device");
             btnBan.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.success)));
             btnBan.setTextColor(getColor(R.color.on_success));
-            btnBan.setOnClickListener(v -> {
-                dialog.dismiss();
-                confirmUnbanDevice(device);
-            });
+            btnBan.setOnClickListener(v -> { dialog.dismiss(); confirmUnbanDevice(device); });
         } else {
             btnBan.setText("Unprotect & Ban");
             btnBan.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.error)));
             btnBan.setTextColor(getColor(R.color.on_error));
-            btnBan.setOnClickListener(v -> {
-                dialog.dismiss();
-                confirmUnprotectAndBan(device);
-            });
+            btnBan.setOnClickListener(v -> { dialog.dismiss(); confirmUnprotectAndBan(device); });
         }
-
         setupSaveButton(btnSave, device);
-
-        btnRename.setOnClickListener(v -> {
-            dialog.dismiss();
-            showRenameDialog(device);
-        });
-
+        btnRename.setOnClickListener(v -> { dialog.dismiss(); showRenameDialog(device); });
         btnClose.setOnClickListener(v -> dialog.dismiss());
-
         dialog.show();
     }
-
     private void showSavedDeviceBottomSheet(Device device) {
         if (isFinishing()) return;
 
@@ -1486,7 +1402,10 @@ public class MainActivity extends AppCompatActivity
         View dotStatus = sheet.findViewById(R.id.dot_saved_sheet_status);
         MaterialCardView cardStatus = sheet.findViewById(R.id.card_saved_sheet_status);
 
-        tvName.setText(device.getName());
+        String sheetName = device.getRawName();
+        tvName.setText(sheetName != null && !sheetName.trim().isEmpty()
+                ? sheetName.trim()
+                : device.getIp());
 
         tvIp.setText(device.getIp() != null && !device.getIp().trim().isEmpty()
                 ? device.getIp()
@@ -1585,19 +1504,16 @@ public class MainActivity extends AppCompatActivity
     private void showRenameDialog(Device device) {
         AlertDialog.Builder builder = new MaterialAlertDialogBuilder(this, R.style.Theme_Netcut_Dialog);
         builder.setTitle("Edit Device Name");
-
         final EditText input = new EditText(this);
-        input.setText(device.getName().equals("Unnamed") ? "" : device.getName());
+
+        input.setText(device.getName().equalsIgnoreCase("Unnamed") ? "" : device.getName());
+
         input.setTextColor(getColor(R.color.text_primary));
         input.setHintTextColor(getColor(R.color.text_tertiary));
-
         builder.setView(input);
-
         builder.setPositiveButton("Save", (dialog, which) -> {
             if (!bound || service == null) return;
-
             String newName = input.getText().toString();
-
             ioExecutor.execute(() -> {
                 service.updateDeviceName(device.getMac(), device.getIp(), newName);
                 mainHandler.postDelayed(() -> {
@@ -1605,12 +1521,9 @@ public class MainActivity extends AppCompatActivity
                 }, 200);
             });
         });
-
         builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
-
         builder.show();
     }
-
     private void showSessionLogs() {
         startActivity(new Intent(this, LogsActivity.class));
     }

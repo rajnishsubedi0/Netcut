@@ -104,11 +104,6 @@ public class BinaryManager {
      * Kills any existing netcut processes before starting a new one.
      */
 
-
-    // ========================================================================
-    // Internal methods (same as before with minor improvements)
-    // ========================================================================
-
     private int getCurrentVersionCode() {
         try {
             PackageInfo pInfo = context.getPackageManager()
@@ -166,14 +161,38 @@ public class BinaryManager {
     }
 
     private long getRawResourceSize(int rawResId) {
-        InputStream is = null;
-        try {
-            is = context.getResources().openRawResource(rawResId);
-            return is.available(); // Quick size check
+        // InputStream.available() is only a hint about bytes readable without
+        // blocking, not a guaranteed total length — using it to validate the
+        // extracted binary's size can under- or over-report and let a
+        // corrupt/truncated extraction pass as "valid", or a valid one get
+        // needlessly re-extracted. openRawResourceFd() exposes the resource's
+        // actual length (it's backed by a file descriptor into the APK),
+        // which is the documented way to get this.
+        try (android.content.res.AssetFileDescriptor afd =
+                     context.getResources().openRawResourceFd(rawResId)) {
+            if (afd != null) {
+                long length = afd.getLength();
+                if (length != android.content.res.AssetFileDescriptor.UNKNOWN_LENGTH) {
+                    return length;
+                }
+            }
+        } catch (Exception ignored) {
+            // Fall through to the stream-based fallback below.
+        }
+
+        // Some raw resources (e.g. compressed ones) can't be opened as an
+        // AssetFileDescriptor; fall back to reading the whole stream to get
+        // an exact count rather than trusting available().
+        try (InputStream is = context.getResources().openRawResource(rawResId)) {
+            long total = 0;
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = is.read(buffer)) != -1) {
+                total += read;
+            }
+            return total;
         } catch (Exception e) {
             return -1;
-        } finally {
-            if (is != null) try { is.close(); } catch (Exception ignored) {}
         }
     }
 

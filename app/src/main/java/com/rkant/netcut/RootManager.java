@@ -31,13 +31,22 @@ public class RootManager {
 
 
     public static String execute(String command, long timeoutMs) {
-        StringBuilder output = new StringBuilder();
+        final StringBuilder output = new StringBuilder();
+        final StringBuilder errOut = new StringBuilder();
         Process p = null;
+        Thread outReader = null;
+        Thread errReader = null;
         try {
             p = Runtime.getRuntime().exec("su");
             DataOutputStream os = new DataOutputStream(p.getOutputStream());
-            BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
-            BufferedReader errBr = new BufferedReader(new InputStreamReader(p.getErrorStream()));
+
+            final Process proc = p;
+            outReader = new Thread(() -> drain(proc.getInputStream(), output));
+            errReader = new Thread(() -> drain(proc.getErrorStream(), errOut));
+            outReader.setDaemon(true);
+            errReader.setDaemon(true);
+            outReader.start();
+            errReader.start();
 
             os.writeBytes(command + "\n");
             os.writeBytes("exit\n");
@@ -63,18 +72,17 @@ public class RootManager {
                 Log.w(TAG, "Root command timed out");
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) p.destroyForcibly();
                 else p.destroy();
+                // Destroying the process closes its streams, which will
+                // unblock the reader threads (read() returns -1/throws).
+                joinQuietly(outReader, 1000);
+                joinQuietly(errReader, 1000);
                 return "TIMEOUT";
             }
 
-            String line;
-            while ((line = br.readLine()) != null) {
-                output.append(line).append("\n");
-            }
-
-            StringBuilder errOut = new StringBuilder();
-            while ((line = errBr.readLine()) != null) {
-                errOut.append(line).append("\n");
-            }
+            // The process has exited; give the reader threads a bounded
+            // window to drain whatever is left in the pipes, then move on.
+            joinQuietly(outReader, 2000);
+            joinQuietly(errReader, 2000);
 
             output.append(errOut);
 
@@ -89,5 +97,28 @@ public class RootManager {
             }
         }
         return output.toString();
+    }
+
+    /** Reads lines from {@code in} into {@code sink} until EOF or the stream errors/closes. */
+    private static void drain(java.io.InputStream in, StringBuilder sink) {
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(in))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                synchronized (sink) {
+                    sink.append(line).append("\n");
+                }
+            }
+        } catch (Exception ignored) {
+            // Stream closed/destroyed underneath us (e.g. on timeout) — nothing more to read.
+        }
+    }
+
+    private static void joinQuietly(Thread t, long millis) {
+        if (t == null) return;
+        try {
+            t.join(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }
