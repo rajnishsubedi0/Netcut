@@ -18,7 +18,7 @@ public class BinaryManager {
     private static final String BINARY_NAME_ARMEABI = "netcut_armeabi";
     private static final String PREFS_NAME = "binary_manager_prefs";
     private static final String KEY_EXTRACTED_VERSION = "last_extracted_version_code";
-
+    public static final String TMP_BINARY_PATH = "/data/local/tmp/netcut_engine";
     private final Context context;
 
     public BinaryManager(Context context) {
@@ -262,5 +262,112 @@ public class BinaryManager {
                         "pids=$(pidof netcut_engine 2>/dev/null); " +
                         "[ -n \"$pids\" ] && kill -9 $pids 2>/dev/null";
         RootManager.execute(script, 5000);
+    }
+    // ========================================================================
+    // Repair (Settings → Troubleshooting)
+    // ========================================================================
+
+    /** Simple result holder for {@link #repairBinary()}. */
+    public static class RepairResult {
+        public final boolean success;
+        public final String message;
+
+        RepairResult(boolean success, String message) {
+            this.success = success;
+            this.message = message;
+        }
+    }
+
+
+    public RepairResult repairBinary() {
+        try {
+            Log.i(TAG, "=== Binary repair started ===");
+            SessionLogManager.getInstance().log("Binary repair started");
+
+            if (!RootManager.isRooted()) {
+                SessionLogManager.getInstance().log("Binary repair failed: no root");
+                return new RepairResult(false,
+                        "Root access is not available. Grant root to Netcut and try again.");
+            }
+
+            String arch = detectArchitecture();
+            if (arch == null) {
+                return new RepairResult(false,
+                        "Unsupported CPU architecture. Cannot repair.");
+            }
+
+            // 1. Stop anything currently running the binary.
+            killExistingProcesses();
+
+            // 2. Remove the staged copy in /data/local/tmp.
+            RootManager.execute("rm -f '" + TMP_BINARY_PATH + "'", 3000);
+            String check = RootManager.execute(
+                    "[ -e '" + TMP_BINARY_PATH + "' ] && echo EXISTS || echo GONE", 3000);
+            boolean tmpRemoved = check != null && check.contains("GONE");
+            if (tmpRemoved) {
+                Log.i(TAG, "Old /data/local/tmp binary removed");
+                SessionLogManager.getInstance().log("Old engine binary deleted from /data/local/tmp");
+            } else {
+                Log.w(TAG, "Could not confirm removal of /data/local/tmp binary");
+            }
+
+            // 3. Wipe app-private binaries and force re-extraction.
+            File binDir = context.getDir("bin", Context.MODE_PRIVATE);
+            deleteAllBinaries(binDir);
+            saveExtractedVersion(-1);
+
+            // 4. Fresh extraction from raw resources (size-validated).
+            String binaryPath = prepareBinary();
+            if (binaryPath == null) {
+                SessionLogManager.getInstance().log("Binary repair failed: re-extraction error");
+                return new RepairResult(false,
+                        "Could not re-extract the binary from app resources. Try reinstalling the app.");
+            }
+            SessionLogManager.getInstance().log("Fresh engine binary extracted");
+
+            // 5. Re-apply SELinux policy needed for the raw socket.
+            String policyBackend = RootPolicyManager.grantRawSocketPolicy();
+            Log.i(TAG, "SELinux policy re-applied via: " + policyBackend);
+
+            // 6. Re-stage a fresh copy where RustBridge expects it.
+            boolean staged = stageTmpBinary(binaryPath);
+
+            // 7. Final verification of the app-private binary.
+            File fresh = new File(binaryPath);
+            if (!fresh.exists() || !fresh.canExecute()) {
+                SessionLogManager.getInstance().log("Binary repair failed: verification error");
+                return new RepairResult(false,
+                        "Repair ran but the binary failed final verification. Please try again.");
+            }
+
+            StringBuilder msg = new StringBuilder("Engine binary repaired successfully.");
+            if (!tmpRemoved) {
+                msg.append(" The old /data/local/tmp copy could not be verified as deleted, but a fresh copy was staged.");
+            }
+            if (!staged) {
+                msg.append(" Staging to /data/local/tmp will be retried automatically on next start.");
+            }
+            SessionLogManager.getInstance().log("Binary repair completed");
+            Log.i(TAG, "=== Binary repair finished ===");
+            return new RepairResult(true, msg.toString());
+        } catch (Exception e) {
+            Log.e(TAG, "Binary repair failed", e);
+            SessionLogManager.getInstance().log("Binary repair failed: " + e.getMessage());
+            return new RepairResult(false, "Repair failed: " + e.getMessage());
+        }
+    }
+
+
+    private boolean stageTmpBinary(String binaryPath) {
+        String script =
+                "rm -f '" + TMP_BINARY_PATH + "' 2>/dev/null; " +
+                        "cp -f '" + binaryPath + "' '" + TMP_BINARY_PATH + "' && " +
+                        "chmod 755 '" + TMP_BINARY_PATH + "' && " +
+                        "chcon u:object_r:system_file:s0 '" + TMP_BINARY_PATH + "' 2>/dev/null; " +
+                        "chcon u:object_r:magisk_file:s0 '" + TMP_BINARY_PATH + "' 2>/dev/null; " +
+                        "chcon u:object_r:shell_exec:s0 '" + TMP_BINARY_PATH + "' 2>/dev/null; " +
+                        "[ -x '" + TMP_BINARY_PATH + "' ] && echo STAGED";
+        String out = RootManager.execute(script, 5000);
+        return out != null && out.contains("STAGED");
     }
 }

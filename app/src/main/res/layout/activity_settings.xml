@@ -384,6 +384,92 @@
                     </LinearLayout>
 
                 </com.google.android.material.card.MaterialCardView>
+                <!-- ========== TROUBLESHOOTING SECTION ========== -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="TROUBLESHOOTING"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_tertiary"
+                    android:letterSpacing="0.1"
+                    android:layout_marginBottom="10dp" />
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="24dp"
+                    app:cardBackgroundColor="@color/surface"
+                    app:cardCornerRadius="24dp"
+                    app:cardElevation="0dp"
+                    app:strokeWidth="1dp"
+                    app:strokeColor="@color/border">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="20dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Repair Engine Binary"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Netcut runs a native engine binary. A working copy is staged at /data/local/tmp/netcut_engine each time the service starts. If that file becomes corrupted, outdated, or loses its permissions, Netcut may fail to start or stop banning devices."
+                            android:textSize="13sp"
+                            android:textColor="@color/text_secondary"
+                            android:layout_marginTop="4dp"
+                            android:lineSpacingExtra="4dp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Repair will:\n• Stop the Netcut service and kill engine processes\n• Delete the old binary from /data/local/tmp\n• Re-extract a fresh binary from the app\n• Reset file permissions (chmod 755) and SELinux labels\n• Re-apply the root policy (Magisk / KernelSU / APatch)\n\nThis takes a few seconds and requires root."
+                            android:textSize="13sp"
+                            android:textColor="@color/text_secondary"
+                            android:layout_marginTop="12dp"
+                            android:lineSpacingExtra="4dp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginTop="16dp">
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btn_repair_binary"
+                                style="@style/Widget.Material3.Button"
+                                android:layout_width="0dp"
+                                android:layout_height="52dp"
+                                android:layout_weight="1"
+                                android:text="Repair Now"
+                                android:textAllCaps="false"
+                                android:textSize="15sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/on_primary"
+                                app:backgroundTint="@color/primary"
+                                app:cornerRadius="14dp" />
+
+                            <ProgressBar
+                                android:id="@+id/progress_repair"
+                                style="@style/Widget.AppCompat.ProgressBar"
+                                android:layout_width="36dp"
+                                android:layout_height="36dp"
+                                android:layout_marginStart="12dp"
+                                android:indeterminate="true"
+                                android:indeterminateTint="@color/primary"
+                                android:visibility="gone" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
 
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>

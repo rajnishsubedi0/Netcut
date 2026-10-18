@@ -69,7 +69,7 @@ public class RustBridge {
             String policyBackend = RootPolicyManager.grantRawSocketPolicy();
             Log.i(TAG, "SELinux policy backend: " + policyBackend);
 
-            String tmpBinPath = "/data/local/tmp/netcut_engine";
+            String tmpBinPath = BinaryManager.TMP_BINARY_PATH;
             String setupScript =
                     "cp -f '" + binaryPath + "' '" + tmpBinPath + "' 2>/dev/null && " +
                             "chmod 755 '" + tmpBinPath + "' && " +

@@ -855,7 +855,7 @@ public class MainActivity extends AppCompatActivity
                     !output.contains("TIMEOUT") &&
                     (output.contains("time=") || output.contains("bytes from") || output.contains("1 received"));
 
-            String msg = reachable ? ip + " is reachable ✔" : ip + " is unreachable ✖";
+            String msg = reachable ? ip + " is reachable" : ip + " is unreachable";
 
             mainHandler.post(() -> {
                 if (!isFinishing()) Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
